@@ -1,0 +1,11 @@
+name: mcr-py
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - ipykernel
+  - pandas
+  - geopandas
+  - tqdm
