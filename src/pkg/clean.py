@@ -2,6 +2,11 @@ import pandas as pd
 import zipfile
 import os
 
+from pkg.key import (
+	CLEAN_TRIPS_FILENAME,
+	CLEAN_STOP_TIMES_FILENAME,
+)
+
 STOPS_FILE = "stops.txt"
 ROUTES_FILE = "routes.txt"
 TRIPS_FILE = "trips.txt"
@@ -162,5 +167,5 @@ def write_dfs(trips_df: pd.DataFrame, stop_times_df: pd.DataFrame, output_path: 
 	for file in os.listdir(output_path):
 		os.remove(os.path.join(output_path, file))
 
-	trips_df.to_csv(os.path.join(output_path, "trips.csv"), index=False)
-	stop_times_df.to_csv(os.path.join(output_path, "stop_times.csv"), index=False)
+	trips_df.to_csv(os.path.join(output_path, CLEAN_TRIPS_FILENAME), index=False)
+	stop_times_df.to_csv(os.path.join(output_path, CLEAN_STOP_TIMES_FILENAME), index=False)
