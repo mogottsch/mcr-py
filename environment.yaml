@@ -9,3 +9,11 @@ dependencies:
   - pandas
   - geopandas
   - tqdm
+  - pyrosm
+  - numpy<1.24.0 # pyrosm does not support numpy 1.24.0 yet
+  - shapely<2.0.0 # pyrosm does not support shapely 2.0.0 yet
+  - osmnx
+  - networkx
+  - python-igraph
+  - ipywidgets
+  - typer
