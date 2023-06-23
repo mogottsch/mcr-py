@@ -1,5 +1,14 @@
+from logging import INFO
+from typing_extensions import Annotated
+from matplotlib import logging
 import typer
-from command import clean, build
+from command import clean, build, footpaths
+from package import logger
+from package.key import (
+    BUILD_STRUCTURES_COMMAND_NAME,
+    CLEAN_GTFS_COMMAND_NAME,
+    FOOTPATHS_COMMAND_NAME,
+)
 
 # mcr-py clean-gtfs <gtfs_dir> <output_dir>
 # mcr-py build-structures <clean_gtfs_dir> <output_dir>
@@ -22,13 +31,14 @@ from command import clean, build
 
 
 app = typer.Typer()
-app.command()(clean.clean_gtfs)
-app.command()(build.build_structures)
+app.command(CLEAN_GTFS_COMMAND_NAME)(clean.clean_gtfs)
+app.command(BUILD_STRUCTURES_COMMAND_NAME)(build.build_structures)
+app.command(FOOTPATHS_COMMAND_NAME)(footpaths.generate)
 
 
 @app.callback(invoke_without_command=True, no_args_is_help=True)
-def root():
-    pass
+def main(log_level: Annotated[str, typer.Option(help="Log level.")] = "INFO"):
+    logger.setup(logging.getLevelName(log_level))
 
 
 if __name__ == "__main__":

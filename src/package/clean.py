@@ -1,20 +1,27 @@
 import pandas as pd
+import geopandas as gpd
 import zipfile
-import os
 
 from package.key import (
-    CLEAN_TRIPS_FILENAME,
-    CLEAN_STOP_TIMES_FILENAME,
+    STOP_TIMES_KEY,
+    TRIPS_KEY,
+    STOPS_KEY,
 )
 
-STOPS_FILE = "stops.txt"
-ROUTES_FILE = "routes.txt"
-TRIPS_FILE = "trips.txt"
-STOP_TIMES_FILE = "stop_times.txt"
-TRANSFERS_FILE = "transfers.txt"
+
+def get_gtfs_filename(name: str) -> str:
+    return f"{name}.txt"
+
+
+STOPS_FILE = get_gtfs_filename(STOPS_KEY)
+# ROUTES_FILE = "routes.txt"
+TRIPS_FILE = get_gtfs_filename(TRIPS_KEY)
+STOP_TIMES_FILE = get_gtfs_filename(STOP_TIMES_KEY)
+# TRANSFERS_FILE = "transfers.txt"
+
 
 EXPECTED_FILES = [
-    # STOPS_FILE,
+    STOPS_FILE,
     # ROUTES_FILE,
     TRIPS_FILE,
     STOP_TIMES_FILE,
@@ -22,20 +29,30 @@ EXPECTED_FILES = [
 ]
 
 
-def clean(gtfs_zip_path: str, output_path: str):
+def clean(gtfs_zip_path: str) -> dict[str, pd.DataFrame]:
     """
     Cleans the GTFS data and writes the cleaned data to the output path.
     The resulting files are `trips.csv` and `stop_times.csv`, other files are
     not needed for our algorithms.
     """
     dfs = read_dfs(gtfs_zip_path)
-    trips_df, stop_times_df = dfs["trips"], dfs["stop_times"]
+    trips_df, stop_times_df, stops_df = (
+        dfs[TRIPS_KEY],
+        dfs[STOP_TIMES_KEY],
+        dfs[STOPS_KEY],
+    )
 
     trips_df = split_routes(trips_df, stop_times_df)
     trips_df = add_first_stop_info(trips_df, stop_times_df)
+    stops_df = remove_unused_stops(stop_times_df, stops_df)
+    stops_df = add_geometry(stops_df)
 
     # make dir with parents
-    write_dfs(trips_df, stop_times_df, output_path)
+    return {
+        TRIPS_KEY: trips_df,
+        STOP_TIMES_KEY: stop_times_df,
+        STOPS_KEY: stops_df,
+    }
 
 
 def read_dfs(gtfs_zip_path: str) -> dict[str, pd.DataFrame]:
@@ -174,12 +191,15 @@ def add_first_stop_info(
     )
 
 
-def write_dfs(trips_df: pd.DataFrame, stop_times_df: pd.DataFrame, output_path: str):
-    os.makedirs(output_path, exist_ok=True)
-    for file in os.listdir(output_path):
-        os.remove(os.path.join(output_path, file))
+def remove_unused_stops(
+    stop_times_df: pd.DataFrame, stops_df: pd.DataFrame
+) -> pd.DataFrame:
+    stops_df = stops_df[stops_df["stop_id"].isin(stop_times_df["stop_id"])]
+    return stops_df
 
-    trips_df.to_csv(os.path.join(output_path, CLEAN_TRIPS_FILENAME), index=False)
-    stop_times_df.to_csv(
-        os.path.join(output_path, CLEAN_STOP_TIMES_FILENAME), index=False
+
+def add_geometry(stops_df: pd.DataFrame) -> pd.DataFrame:
+    return gpd.GeoDataFrame(
+        stops_df,
+        geometry=gpd.points_from_xy(stops_df.stop_lon, stops_df.stop_lat),
     )

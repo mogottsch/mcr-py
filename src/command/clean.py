@@ -3,17 +3,20 @@ from typing_extensions import Annotated
 import typer
 
 from package.clean import clean
+from package.storage import write_dfs_dict
 
 
 def clean_gtfs(
     gtfs_zip_file: Annotated[str, typer.Argument(help="Path to GTFS zip file")],
     output_dir: Annotated[str, typer.Argument(help="Path to output directory")],
 ):
-    check_flags(gtfs_zip_file)
-    clean(gtfs_zip_file, output_dir)
+    validate_flags(gtfs_zip_file)
+
+    dfs_dict = clean(gtfs_zip_file)
+    write_dfs_dict(dfs_dict, output_dir)
 
 
-def check_flags(
+def validate_flags(
     gtfs_zip_file: str,
 ):
     # check if gtfs_zip_file exists and is a zip file

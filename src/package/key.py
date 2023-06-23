@@ -1,5 +1,6 @@
-CLEAN_TRIPS_FILENAME = "trips.csv"
-CLEAN_STOP_TIMES_FILENAME = "stop_times.csv"
+TRIPS_KEY = "trips"
+STOP_TIMES_KEY = "stop_times"
+STOPS_KEY = "stops"
 
 
 # algorithm data
@@ -12,3 +13,9 @@ TIMES_BY_STOP_BY_ROUTE_KEY = "times_by_stop_by_route"
 STOP_ID_SET_KEY = "stop_id_set"
 ROUTE_ID_SET_KEY = "route_id_set"
 TRIP_ID_SET_KEY = "trip_id_set"
+
+
+# command names
+CLEAN_GTFS_COMMAND_NAME = "clean-gtfs"
+BUILD_STRUCTURES_COMMAND_NAME = "build-structures"
+FOOTPATHS_COMMAND_NAME = "generate-footpaths"

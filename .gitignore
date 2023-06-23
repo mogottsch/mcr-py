@@ -1,0 +1,5 @@
+__pycache__
+tmp
+osm
+reached.csv
+stop_ids_near_nodes.csv

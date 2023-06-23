@@ -17,3 +17,5 @@ dependencies:
   - python-igraph
   - ipywidgets
   - typer
+  - shellingham
+  - rich
