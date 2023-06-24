@@ -1,3 +1,6 @@
+from matplotlib import sys
+
+
 def str_time_to_seconds(str_time: str) -> int:
     """
     Converts a str of format HH:MM:SS to seconds since midnight.
@@ -13,6 +16,8 @@ def seconds_to_str_time(seconds: int) -> str:
     Converts seconds since midnight to a str of format HH:MM:SS.
     Can handle times that go past midnight.
     """
+    if seconds == sys.maxsize:
+        return "--:--:--"
     hours = seconds // 3600
     minutes = (seconds - hours * 3600) // 60
     seconds = seconds - hours * 3600 - minutes * 60

@@ -1,5 +1,4 @@
 import os
-import pandas as pd
 from typing import Annotated
 import typer
 from package import storage
