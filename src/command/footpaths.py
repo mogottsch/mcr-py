@@ -1,11 +1,10 @@
-from logging import INFO
 from typing_extensions import Annotated
+from pyrosm.data import os
 import typer
 
 from package import storage
 from package.footpaths import generate as direct_generate
-from package.logger import Timed
-from package.key import CLEAN_GTFS_COMMAND_NAME, STOPS_KEY
+from package.key import CLEAN_GTFS_COMMAND_NAME, STOPS_KEY, FOOTPATHS_KEY
 
 CLEAN_STOPS_FILENAME = storage.get_df_filename_for_name(STOPS_KEY)
 
@@ -62,13 +61,15 @@ def generate(
         max_walking_duration,
         output,
     )
-    direct_generate(
+    footpaths = direct_generate(
         city_id,
         osm,
         stops,
         avg_walking_speed,
         max_walking_duration,
     )
+
+    storage.write_any_dict({FOOTPATHS_KEY: footpaths}, output)
 
 
 def validate_flags(
@@ -82,4 +83,20 @@ def validate_flags(
     if not city_id and not osm:
         raise typer.BadParameter(
             "Either '--city-id' or '--osm' must be provided.",
+        )
+
+    if osm and not os.path.isfile(osm):
+        raise typer.BadParameter(f"File '{osm}' does not exist.")
+
+    if not os.path.isfile(stops):
+        raise typer.BadParameter(f"File '{stops}' does not exist.")
+
+    if avg_walking_speed <= 0:
+        raise typer.BadParameter(
+            f"Average walking speed must be positive, got {avg_walking_speed}.",
+        )
+
+    if max_walking_duration <= 0:
+        raise typer.BadParameter(
+            f"Maximum walking duration must be positive, got {max_walking_duration}.",
         )

@@ -8,7 +8,6 @@ from shapely.geometry import MultiPoint
 import networkx as nx
 import igraph as ig
 import osmnx as ox
-from tqdm.notebook import tqdm
 from tqdm.contrib.concurrent import process_map
 
 from package import storage
@@ -28,7 +27,10 @@ def generate(
     osm_path = osm_path if osm_path else get_osm_path_from_city_id(city_id)
 
     if not os.path.exists(osm_path) and city_id:
+        llog.info("Downloading OSM data")
         download_osm(city_id, osm_path)
+    else:
+        llog.info("Using existing OSM data")
 
     osm = pyrosm.OSM(osm_path)
 
@@ -46,27 +48,28 @@ def generate(
     with Timed.info("Trimming OSM network to stops"):
         nodes, edges = trim_osm_to_stops(nodes, edges, stops_df)
 
-    with Timed.info("Creating igraph"):
+    with Timed.info("Creating igraph graph"):
         i_graph = create_i_graph(osm, nodes, edges)
 
-    with Timed.info("Creating networkx"):
+    with Timed.info("Creating networkx graph"):
         nx_graph = create_nx_graph(osm, nodes, edges)
 
-    with Timed.info("Adding nearest node to stops"):
+    with Timed.info("Adding nearest network node to each stop"):
         stops_df = add_nearest_node_to_stops(stops_df, nx_graph)
 
-    with Timed.info("Creating footpaths"):
+    with Timed.info("Finding potential nearby stops for each stop"):
         nearby_stops_map = create_nearby_stops_map(
             stops_df, avg_walking_speed, max_walking_duration
         )
 
-    with Timed.info("Creating footpaths"):
-        create_footpaths(
+    with Timed.info("Calculating distances between nearby stops"):
+        footpaths = create_footpaths(
             i_graph,
             stops_df,
             nearby_stops_map,
             avg_walking_speed,
         )
+    return footpaths
 
 
 def get_osm_path_from_city_id(city_id: str) -> str:
@@ -151,44 +154,40 @@ def create_nearby_stops_map(
 
 
 def create_footpaths(
-    i_graph: ig.Graph,
+    i_graph_arg: ig.Graph,
     stops_df: gpd.GeoDataFrame,
     nearby_stops_map: dict[str, list[str]],
     avg_walking_speed: float,
 ):
+    global i_graph  # will be used during multiprocessing
+    i_graph = i_graph_arg
+
     nearby_stops_with_distance_map = {}
 
+    global node_id_to_g_igraph_node_id_map  # will be used during multiprocessing
     node_id_to_g_igraph_node_id_map = {
         node.attributes()["id"]: node.attributes()["node_id"]
-        for node in list(i_graph.vs)
+        for node in list(i_graph_arg.vs)
     }
 
-    def get_shortest_path_length_igraph(s_node_id, t_node_id):
-        paths = i_graph.get_shortest_paths(
-            node_id_to_g_igraph_node_id_map[s_node_id],
-            node_id_to_g_igraph_node_id_map[t_node_id],
-            weights="length",
-            output="epath",
-        )
-        path = paths[0]
-        return sum(i_graph.es[epath]["length"] for epath in path)
-
+    global nearest_node_dict  # will be used during multiprocessing
     nearest_node_dict = stops_df.set_index("stop_id")["nearest_node"].to_dict()
 
-    def ge(source_stop, nearby_stops):
-        return {
-            target_stop: get_shortest_path_length_igraph(
-                nearest_node_dict[source_stop], nearest_node_dict[target_stop]
-            )
-            for target_stop in nearby_stops
-        }
+    stop_list, nearby_stops_list = zip(*nearby_stops_map.items())
 
-    sources = nearby_stops_map.keys()
+    # # pick 10 for testing
+    # stop_list = stop_list[:10]
+    # nearby_stops_list = nearby_stops_list[:10]
+
     res = process_map(
-        ge, sources, nearby_stops_map.values(), chunksize=5, max_workers=12
+        get_distances_nearby_stops,
+        stop_list,
+        nearby_stops_list,
+        chunksize=5,
+        max_workers=12,
     )
 
-    for source_stop, nearby_stops_with_distance in zip(sources, res):
+    for source_stop, nearby_stops_with_distance in zip(stop_list, res):
         nearby_stops_with_distance_map[source_stop] = nearby_stops_with_distance
 
     nearby_stop_with_walking_time_map = {}
@@ -197,8 +196,37 @@ def create_footpaths(
         nearby_stops_with_distance,
     ) in nearby_stops_with_distance_map.items():
         nearby_stop_with_walking_time_map[source_stop] = {
-            target_stop: distance / avg_walking_speed
+            target_stop: int(distance / avg_walking_speed)
             for target_stop, distance in nearby_stops_with_distance.items()
         }
 
+    # clean up globals
+    del i_graph
+    del node_id_to_g_igraph_node_id_map
+    del nearest_node_dict
+
     return nearby_stop_with_walking_time_map
+
+
+def get_shortest_path_length_igraph(s_node_id, t_node_id):
+    paths = i_graph.get_shortest_paths(
+        node_id_to_g_igraph_node_id_map[s_node_id],
+        node_id_to_g_igraph_node_id_map[t_node_id],
+        weights="length",
+        output="epath",
+    )
+    path = paths[0]
+    return sum(i_graph.es[epath]["length"] for epath in path)
+
+
+def get_distances_nearby_stops(
+    source_stop,
+    nearby_stops,
+):
+    return {
+        target_stop: get_shortest_path_length_igraph(
+            nearest_node_dict[source_stop],
+            nearest_node_dict[target_stop],
+        )
+        for target_stop in nearby_stops
+    }

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Tuple
 import pandas as pd
 
 from package.strtime import str_time_to_seconds
@@ -8,11 +8,23 @@ from package.key import (
     STOPS_BY_ROUTE_KEY,
     ROUTES_BY_STOP_KEY,
     IDX_BY_STOP_BY_ROUTE_KEY,
-    TIMES_BY_STOP_BY_ROUTE_KEY,
+    TIMES_BY_STOP_BY_TRIP_KEY,
     STOP_ID_SET_KEY,
     ROUTE_ID_SET_KEY,
     TRIP_ID_SET_KEY,
 )
+
+STRUCTS_KEYS = [
+    STOP_TIMES_BY_TRIP_KEY,
+    TRIP_IDS_BY_ROUTE_KEY,
+    STOPS_BY_ROUTE_KEY,
+    ROUTES_BY_STOP_KEY,
+    IDX_BY_STOP_BY_ROUTE_KEY,
+    TIMES_BY_STOP_BY_TRIP_KEY,
+    STOP_ID_SET_KEY,
+    ROUTE_ID_SET_KEY,
+    TRIP_ID_SET_KEY,
+]
 
 
 def build_structures(
@@ -23,7 +35,7 @@ def build_structures(
     stops_by_route = create_stops_by_route(trip_ids_by_route, stop_times_by_trip)
     routes_by_stop = create_routes_by_stop(stops_by_route)
     idx_by_stop_by_route = create_idx_by_stop_by_route(stops_by_route)
-    times_by_stop_by_route = create_times_by_stop_by_trip(stop_times_by_trip)
+    times_by_stop_by_trip = create_times_by_stop_by_trip(stop_times_by_trip)
 
     stop_id_set, route_id_set, trip_id_set = create_id_sets(trips_df, routes_by_stop)
 
@@ -33,7 +45,7 @@ def build_structures(
         STOPS_BY_ROUTE_KEY: stops_by_route,
         ROUTES_BY_STOP_KEY: routes_by_stop,
         IDX_BY_STOP_BY_ROUTE_KEY: idx_by_stop_by_route,
-        TIMES_BY_STOP_BY_ROUTE_KEY: times_by_stop_by_route,
+        TIMES_BY_STOP_BY_TRIP_KEY: times_by_stop_by_trip,
         STOP_ID_SET_KEY: stop_id_set,
         ROUTE_ID_SET_KEY: route_id_set,
         TRIP_ID_SET_KEY: trip_id_set,
@@ -100,6 +112,8 @@ def create_routes_by_stop(
             routes.append(route_id)
             routes_by_stop[stop_id] = routes
 
+    assert type(list(routes_by_stop.keys())[0]) == str
+
     return routes_by_stop
 
 
@@ -158,3 +172,9 @@ def create_times_by_stop_by_trip(
 #     departure_time = times_by_stop_by_trip[trip_id][stop_id][1]
 #     assert type(departure_time) == int
 #     return departure_time
+
+
+def validate_structs_dict(structs: dict):
+    for key in STRUCTS_KEYS:
+        if not key in structs:
+            raise Exception(f"Structs dict missing key {key}")

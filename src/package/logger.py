@@ -1,6 +1,9 @@
 import logging
+import inspect
 from logging import DEBUG, INFO, WARNING, ERROR, CRITICAL
 from time import time
+import pathlib
+
 from rich.logging import RichHandler
 import click
 
@@ -26,17 +29,34 @@ class Timed:
         self.kwargs = kwargs
         self.time = time()
 
+        # create a filter that changes the log record to point to the calling frame
+        # from this file to the file that actully called Timed
+        calling_frame = inspect.stack()[2].frame
+        trace = inspect.getframeinfo(calling_frame)
+
+        class UpStackFilter(logging.Filter):
+            def filter(self, record):
+                record.lineno = trace.lineno
+                record.pathname = trace.filename
+                record.filename = pathlib.Path(trace.filename).name
+                return True
+
+        self.f = UpStackFilter()
+
     def __enter__(self):
+        llog.addFilter(self.f)
         llog.log(self.level, self.msg, *self.args, **self.kwargs)
 
     def __exit__(self, exc_type, exc_value, traceback):
         duration = time() - self.time
+        outcome = "failed" if exc_type else "done"
         llog.log(
             self.level,
-            self.msg + f" done ({duration:.2f} seconds)",
+            self.msg + f" {outcome} ({format_duration(duration)})",
             *self.args,
             **self.kwargs,
         )
+        llog.removeFilter(self.f)
 
     @staticmethod
     def debug(msg, *args, **kwargs):
@@ -61,3 +81,14 @@ class Timed:
     @staticmethod
     def log(level, msg, *args, **kwargs):
         return Timed(level, msg, *args, **kwargs)
+
+
+def format_duration(duration: float) -> str:
+    if duration < 60:
+        return f"{duration:.2f} seconds"
+
+    duration = int(duration)
+
+    if duration < 3600:
+        return f"{duration // 60}:{duration % 60:02d} minutes"
+    return f"{duration // 3600}:{(duration % 3600) // 60:02d}:{duration % 60:02d} hours"
