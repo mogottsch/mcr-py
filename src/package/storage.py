@@ -1,4 +1,5 @@
 from typing_extensions import Any
+from matplotlib import tempfile
 import pandas as pd
 import geopandas as gpd
 import os
@@ -18,6 +19,7 @@ def write_df(df: pd.DataFrame, output_path: str):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     df.to_csv(output_path, index=False)
+
 
 def get_df_filename_for_name(name: str) -> str:
     return f"{name}.csv"
@@ -43,3 +45,7 @@ def write_any_dict(data: dict[str, Any], output_path: str):
 def read_any_dict(path: str) -> dict[str, Any]:
     with open(path, "rb") as f:
         return pickle.load(f)
+
+
+def get_tmp_path(*paths: str) -> str:
+    return os.path.join(tempfile.gettempdir(), *paths)

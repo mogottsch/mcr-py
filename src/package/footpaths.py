@@ -10,11 +10,11 @@ import igraph as ig
 import osmnx as ox
 from tqdm.contrib.concurrent import process_map
 
-from package import storage
+from package import key, storage
 from package.logger import Timed, llog
 
 
-OSM_DIR_PATH = os.path.join(tempfile.gettempdir(), "mcr-py", "osm")
+OSM_DIR_PATH = storage.get_tmp_path( key.TMP_DIR_NAME, key.TMP_OSM_DIR_NAME)
 
 
 def generate(
