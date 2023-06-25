@@ -1,8 +1,10 @@
-from pyrosm.data import get_data
 import shutil
 import os
-import pyrosm
 import tempfile
+import multiprocessing
+
+from pyrosm.data import get_data
+import pyrosm
 import geopandas as gpd
 from shapely.geometry import MultiPoint
 import networkx as nx
@@ -14,7 +16,7 @@ from package import key, storage
 from package.logger import Timed, llog
 
 
-OSM_DIR_PATH = storage.get_tmp_path( key.TMP_DIR_NAME, key.TMP_OSM_DIR_NAME)
+OSM_DIR_PATH = storage.get_tmp_path(key.TMP_DIR_NAME, key.TMP_OSM_DIR_NAME)
 
 
 def generate(
@@ -184,7 +186,7 @@ def create_footpaths(
         stop_list,
         nearby_stops_list,
         chunksize=5,
-        max_workers=12,
+        max_workers=multiprocessing.cpu_count()-2, # leave some to prevent lags
     )
 
     for source_stop, nearby_stops_with_distance in zip(stop_list, res):

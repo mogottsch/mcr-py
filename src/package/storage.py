@@ -1,4 +1,6 @@
 from typing_extensions import Any
+import requests
+
 from matplotlib import tempfile
 import pandas as pd
 import geopandas as gpd
@@ -49,3 +51,10 @@ def read_any_dict(path: str) -> dict[str, Any]:
 
 def get_tmp_path(*paths: str) -> str:
     return os.path.join(tempfile.gettempdir(), *paths)
+
+
+def download_file(url: str, path: str):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    with open(path, "wb") as f:
+        f.write(requests.get(url).content)

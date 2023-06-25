@@ -19,3 +19,5 @@ dependencies:
   - typer
   - shellingham
   - rich
+  # optional
+  - folium

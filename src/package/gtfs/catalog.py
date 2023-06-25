@@ -1,5 +1,7 @@
 from re import IGNORECASE
 from typing_extensions import Any
+from datetime import datetime
+
 from geopandas import pd
 from matplotlib import os
 from osmnx.elevation import requests
@@ -8,6 +10,8 @@ from rich.table import Table
 from rich import print
 
 from package import key, storage
+from package.logger import Timed
+from package.logger import llog
 
 CATALOG_PATH = storage.get_tmp_path(
     key.TMP_GTFS_DIR_NAME, key.TMP_GTFS_CATALOG_FILE_NAME
@@ -131,3 +135,22 @@ def print_catalog(catalog: pd.DataFrame):
 def format_value(value: Any) -> str:
     formatted_value = str(value) or "-"
     return formatted_value
+
+
+def download(id: int, output: str):
+    catalog = get_catalog()
+    catalog = catalog[catalog.index == id]
+
+    if len(catalog) == 0:
+        llog.error(f"GTFS feed with ID {id} not found.")
+        return
+
+    row = catalog.iloc[0]
+    url = row[COL_DOWNLOAD_URL]
+
+    if not url:
+        llog.error(f"GTFS feed with ID {id} has no download URL.")
+        return
+
+    with Timed.info(f"Downloading GTFS feed with ID {id}"):
+        storage.download_file(url, output)

@@ -1,33 +1,13 @@
-from typing import Tuple
 import pandas as pd
 import geopandas as gpd
-import zipfile
 
 from package.key import (
     STOP_TIMES_KEY,
     TRIPS_KEY,
     STOPS_KEY,
 )
-
-
-def get_gtfs_filename(name: str) -> str:
-    return f"{name}.txt"
-
-
-STOPS_FILE = get_gtfs_filename(STOPS_KEY)
-# ROUTES_FILE = "routes.txt"
-TRIPS_FILE = get_gtfs_filename(TRIPS_KEY)
-STOP_TIMES_FILE = get_gtfs_filename(STOP_TIMES_KEY)
-# TRANSFERS_FILE = "transfers.txt"
-
-
-EXPECTED_FILES = [
-    STOPS_FILE,
-    # ROUTES_FILE,
-    TRIPS_FILE,
-    STOP_TIMES_FILE,
-    # TRANSFERS_FILE
-]
+from package.logger import Timed
+from package.gtfs import archive
 
 
 def clean(gtfs_zip_path: str) -> dict[str, pd.DataFrame]:
@@ -36,17 +16,20 @@ def clean(gtfs_zip_path: str) -> dict[str, pd.DataFrame]:
     The resulting files are `trips.csv` and `stop_times.csv`, other files are
     not needed for our algorithms.
     """
-    dfs = read_dfs(gtfs_zip_path)
+    with Timed.info("Reading GTFS data"):
+        dfs = archive.read_dfs(gtfs_zip_path)
     trips_df, stop_times_df, stops_df = (
         dfs[TRIPS_KEY],
         dfs[STOP_TIMES_KEY],
         dfs[STOPS_KEY],
     )
 
-    trips_df = split_routes(trips_df, stop_times_df)
-    trips_df = add_first_stop_info(trips_df, stop_times_df)
-    stops_df = remove_unused_stops(stop_times_df, stops_df)
-    stops_df = add_geometry(stops_df)
+    with Timed.info("Splitting routes"):
+        trips_df = split_routes(trips_df, stop_times_df)
+    with Timed.info("Preparing dataframes"):
+        trips_df = add_first_stop_info(trips_df, stop_times_df)
+        stops_df = remove_unused_stops(stop_times_df, stops_df)
+        stops_df = add_geometry(stops_df)
 
     # make dir with parents
     return {
@@ -54,33 +37,6 @@ def clean(gtfs_zip_path: str) -> dict[str, pd.DataFrame]:
         STOP_TIMES_KEY: stop_times_df,
         STOPS_KEY: stops_df,
     }
-
-
-def read_dfs(gtfs_zip_path: str) -> dict[str, pd.DataFrame]:
-    """
-    Reads GTFS zip file and returns a dictionary of dataframes.
-    """
-    dfs = {}
-
-    with zipfile.ZipFile(gtfs_zip_path, "r") as zip_ref:
-        contained = zip_ref.namelist()
-
-        for expected_file in EXPECTED_FILES:
-            if expected_file not in contained:
-                raise Exception(f"Expected file {expected_file} not in zip file")
-
-        for file in EXPECTED_FILES:
-            df = read_file(zip_ref, file)
-            name = file.split(".")[0]
-            dfs[name] = df
-
-    return dfs
-
-
-def read_file(zip_ref: zipfile.ZipFile, file: str) -> pd.DataFrame:
-    with zip_ref.open(file) as f:
-        df = pd.read_csv(f)
-        return df
 
 
 def split_routes(trips_df: pd.DataFrame, stop_times_df: pd.DataFrame) -> pd.DataFrame:

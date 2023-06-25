@@ -4,7 +4,7 @@ import typer
 
 from package import storage
 from package.footpaths import generate as direct_generate
-from package.key import CLEAN_GTFS_COMMAND_NAME, STOPS_KEY, FOOTPATHS_KEY
+from package.key import COMPLETE_GTFS_CLEAN_COMMAND_NAME, STOPS_KEY, FOOTPATHS_KEY
 
 CLEAN_STOPS_FILENAME = storage.get_df_filename_for_name(STOPS_KEY)
 
@@ -25,7 +25,7 @@ Required if '--city-id' is not provided.
 STOPS_HELP = f"""
 A path that should point to either {CLEAN_STOPS_FILENAME} or a directory \
 containing {CLEAN_STOPS_FILENAME}, as given by the output of the \
-{CLEAN_GTFS_COMMAND_NAME} command.
+{COMPLETE_GTFS_CLEAN_COMMAND_NAME} command.
 """
 
 

@@ -140,7 +140,7 @@ def raptor(
         if len(marked_stops) == 0:
             break
 
-    llog.debug(f"RAPTOR finished after {k} iterations")
+    llog.info(f"RAPTOR finished after {k} iterations")
     return seconds_dict_to_times_dict(tau_best)
 
 

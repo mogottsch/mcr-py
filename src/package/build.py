@@ -1,5 +1,6 @@
 from typing import Any, Tuple
 import pandas as pd
+from package.logger import Timed
 
 from package.strtime import str_time_to_seconds
 from package.key import (
@@ -30,14 +31,21 @@ STRUCTS_KEYS = [
 def build_structures(
     trips_df: pd.DataFrame, stop_times_df: pd.DataFrame
 ) -> dict[str, Any]:
-    stop_times_by_trip = create_stop_times_by_trip(stop_times_df)
-    trip_ids_by_route = create_trip_ids_by_route(trips_df)
-    stops_by_route = create_stops_by_route(trip_ids_by_route, stop_times_by_trip)
-    routes_by_stop = create_routes_by_stop(stops_by_route)
-    idx_by_stop_by_route = create_idx_by_stop_by_route(stops_by_route)
-    times_by_stop_by_trip = create_times_by_stop_by_trip(stop_times_by_trip)
+    with Timed.info("Creating `stop_times_by_trip`"):
+        stop_times_by_trip = create_stop_times_by_trip(stop_times_df)
+    with Timed.info("Creating `trip_ids_by_route`"):
+        trip_ids_by_route = create_trip_ids_by_route(trips_df)
+    with Timed.info("Creating `stops_by_route`"):
+        stops_by_route = create_stops_by_route(trip_ids_by_route, stop_times_by_trip)
+    with Timed.info("Creating `routes_by_stop`"):
+        routes_by_stop = create_routes_by_stop(stops_by_route)
+    with Timed.info("Creating `idx_by_stop_by_route`"):
+        idx_by_stop_by_route = create_idx_by_stop_by_route(stops_by_route)
+    with Timed.info("Creating `times_by_stop_by_trip`"):
+        times_by_stop_by_trip = create_times_by_stop_by_trip(stop_times_by_trip)
 
-    stop_id_set, route_id_set, trip_id_set = create_id_sets(trips_df, routes_by_stop)
+    with Timed.info("Creating id sets"):
+        stop_id_set, route_id_set, trip_id_set = create_id_sets(trips_df, routes_by_stop)
 
     data = {
         STOP_TIMES_BY_TRIP_KEY: stop_times_by_trip,

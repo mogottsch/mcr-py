@@ -1,6 +1,19 @@
 TRIPS_KEY = "trips"
 STOP_TIMES_KEY = "stop_times"
 STOPS_KEY = "stops"
+CALENDAR_KEY = "calendar"
+
+
+# GTFS data keys
+STOPS_LAT_KEY = "stop_lat"
+STOPS_LON_KEY = "stop_lon"
+STOP_ID_KEY = "stop_id"
+TRIP_ID_KEY = "trip_id"
+SERVICE_ID_KEY = "service_id"
+CALENDAR_START_DATE_KEY = "start_date"
+CALENDAR_END_DATE_KEY = "end_date"
+
+CALENDAR_DATE_TIME_FORMAT = "%Y%m%d"
 
 
 # algorithm data
@@ -17,7 +30,6 @@ FOOTPATHS_KEY = "footpaths"
 
 
 # command names
-CLEAN_GTFS_COMMAND_NAME = "clean-gtfs"
 BUILD_STRUCTURES_COMMAND_NAME = "build-structures"
 FOOTPATHS_COMMAND_NAME = "generate-footpaths"
 RAPTOR_COMMAND_NAME = "raptor"
@@ -25,6 +37,10 @@ RAPTOR_COMMAND_NAME = "raptor"
 GTFS_COMMAND_NAME = "gtfs"
 GTFS_LIST_COMMAND_NAME = "list"
 GTFS_DOWNLOAD_COMMAND_NAME = "download"
+GTFS_CROP_COMMAND_NAME = "crop"
+GTFS_CLEAN_COMMAND_NAME = "clean"
+
+COMPLETE_GTFS_CLEAN_COMMAND_NAME = f"{GTFS_COMMAND_NAME} {GTFS_CLEAN_COMMAND_NAME}"
 
 
 # paths
@@ -35,4 +51,8 @@ TMP_GTFS_CATALOG_FILE_NAME = "catalog.csv"
 
 
 # urls
-GTFS_CATALOG_URL = "https://bit.ly/catalogs-csv" # https://database.mobilitydata.org/
+GTFS_CATALOG_URL = "https://bit.ly/catalogs-csv"  # https://database.mobilitydata.org/
+
+
+DATE_TIME_FORMAT = "%d.%m.%Y-%H:%M:%S"
+DATE_TIME_FORMAT_HUMAN_READABLE = "DD.MM.YYYY-HH:MM:SS"
