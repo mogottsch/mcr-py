@@ -1,18 +1,15 @@
 from typing_extensions import Annotated
 import typer
-from command import build, footpaths, gtfs, raptor
-from package import logger
-from package.key import (
-    BUILD_STRUCTURES_COMMAND_NAME,
-    FOOTPATHS_COMMAND_NAME,
-    RAPTOR_COMMAND_NAME,
-)
+from command import build, footpaths, raptor, osm
+from command.gtfs import gtfs
+from package import logger, key
 
 app = typer.Typer()
-app.command(BUILD_STRUCTURES_COMMAND_NAME)(build.build_structures)
-app.command(FOOTPATHS_COMMAND_NAME)(footpaths.generate)
-app.command(RAPTOR_COMMAND_NAME)(raptor.raptor)
-app.add_typer(gtfs.app, name="gtfs")
+app.command(key.BUILD_STRUCTURES_COMMAND_NAME)(build.build_structures)
+app.command(key.FOOTPATHS_COMMAND_NAME)(footpaths.generate)
+app.command(key.RAPTOR_COMMAND_NAME)(raptor.raptor)
+app.add_typer(gtfs.app, name=key.GTFS_UPPER_COMMAND_NAME)
+app.add_typer(osm.app, name=key.OSM_UPPER_COMMAND_NAME)
 
 
 @app.callback(invoke_without_command=True, no_args_is_help=True)

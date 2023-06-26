@@ -1,18 +1,16 @@
 import shutil
 import os
-import tempfile
 import multiprocessing
 
 from pyrosm.data import get_data
 import pyrosm
 import geopandas as gpd
-from shapely.geometry import MultiPoint
 import networkx as nx
 import igraph as ig
 import osmnx as ox
 from tqdm.contrib.concurrent import process_map
 
-from package import key, storage
+from package import key, storage, osm
 from package.logger import Timed, llog
 
 
@@ -34,27 +32,22 @@ def generate(
     else:
         llog.info("Using existing OSM data")
 
-    osm = pyrosm.OSM(osm_path)
+    osm_reader = osm.new_osm_reader(osm_path)
 
     with Timed.info("Reading OSM network"):
-        network = osm.get_network(nodes=True, network_type="walking")
-        if network is None:
-            raise Exception("No walking network found in OSM data.")
-        res = network
-        nodes: gpd.GeoDataFrame = res[0]  # type: ignore
-        edges: gpd.GeoDataFrame = res[1]  # type: ignore
+        nodes, edges = osm.read_network(osm_reader)
 
     with Timed.info("Reading stops"):
         stops_df = storage.read_gdf(stops_path)
 
-    with Timed.info("Trimming OSM network to stops"):
-        nodes, edges = trim_osm_to_stops(nodes, edges, stops_df)
+    with Timed.info("Cropping OSM network to stops"):
+        nodes, edges = osm.crop_to_stops(nodes, edges, stops_df)
 
     with Timed.info("Creating igraph graph"):
-        i_graph = create_i_graph(osm, nodes, edges)
+        i_graph = create_i_graph(osm_reader, nodes, edges)
 
     with Timed.info("Creating networkx graph"):
-        nx_graph = create_nx_graph(osm, nodes, edges)
+        nx_graph = create_nx_graph(osm_reader, nodes, edges)
 
     with Timed.info("Adding nearest network node to each stop"):
         stops_df = add_nearest_node_to_stops(stops_df, nx_graph)
@@ -82,28 +75,6 @@ def download_osm(city_id: str, path: str):
     fp = get_data(city_id, update=True)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     shutil.move(fp, path)
-
-
-def trim_osm_to_stops(
-    nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame, stops_df: gpd.GeoDataFrame
-):
-    combined_geometry = MultiPoint(stops_df.geometry.tolist())
-    convex_hull = combined_geometry.convex_hull
-    zone_of_interest = convex_hull.buffer(0.01)
-
-    n_nodes_before = len(nodes)
-    n_edges_before = len(edges)
-
-    nodes = nodes.loc[nodes.geometry.within(zone_of_interest), :]
-    edges = edges.loc[edges.u.isin(nodes.id) & edges.v.isin(nodes.id), :]
-    llog.info(
-        f"{len(nodes)}/{n_nodes_before} ({len(nodes)/n_nodes_before*100:.2f}%) nodes remaining"
-    )
-    llog.info(
-        f"{len(edges)}/{n_edges_before} ({len(edges)/n_edges_before*100:.2f}%) edges remaining"
-    )
-
-    return nodes, edges
 
 
 def create_nx_graph(
@@ -186,7 +157,7 @@ def create_footpaths(
         stop_list,
         nearby_stops_list,
         chunksize=5,
-        max_workers=multiprocessing.cpu_count()-2, # leave some to prevent lags
+        max_workers=multiprocessing.cpu_count() - 2,  # leave some to prevent lags
     )
 
     for source_stop, nearby_stops_with_distance in zip(stop_list, res):

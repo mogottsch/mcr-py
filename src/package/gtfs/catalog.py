@@ -128,7 +128,7 @@ def print_catalog(catalog: pd.DataFrame):
     console.print(table)
     print(f"Total: [bold]{len(catalog)}[/bold]\n")
     print(
-        f"[i] Use [bold]{key.GTFS_COMMAND_NAME} {key.GTFS_DOWNLOAD_COMMAND_NAME} <[{ID_COLOR}]ID[/]>[/bold] to download a GTFS feed."
+        f"[i] Use [bold]{key.GTFS_UPPER_COMMAND_NAME} {key.GTFS_DOWNLOAD_COMMAND_NAME} <[{ID_COLOR}]ID[/]>[/bold] to download a GTFS feed."
     )
 
 

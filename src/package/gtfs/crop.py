@@ -74,7 +74,7 @@ def crop(
 
     llog.info(
         f"""\
-        Trim results:
+        Crop results:
         # of trips: {len(trips_df)} ({len(trips_df) / n_trips:.2%})
         # of stop times: {len(stop_times_df)} ({len(stop_times_df) / n_stop_times:.2%})
         # of stops: {len(stops_df)} ({len(stops_df) / n_stops:.2%})"""
@@ -110,17 +110,17 @@ def crop_stops(
     lon_max: {lon_max}
 
     Previous Bounding Box:
-    lat_min: {stops_df[key.STOPS_LAT_KEY].min()}
-    lon_min: {stops_df[key.STOPS_LON_KEY].min()}
-    lat_max: {stops_df[key.STOPS_LAT_KEY].max()}
-    lon_max: {stops_df[key.STOPS_LON_KEY].max()}
+    lat_min: {stops_df[key.STOP_LAT_KEY].min()}
+    lon_min: {stops_df[key.STOP_LON_KEY].min()}
+    lat_max: {stops_df[key.STOP_LAT_KEY].max()}
+    lon_max: {stops_df[key.STOP_LON_KEY].max()}
     """
     )
     return stops_df[
-        (stops_df[key.STOPS_LAT_KEY] >= lat_min)
-        & (stops_df[key.STOPS_LAT_KEY] <= lat_max)
-        & (stops_df[key.STOPS_LON_KEY] >= lon_min)
-        & (stops_df[key.STOPS_LON_KEY] <= lon_max)
+        (stops_df[key.STOP_LAT_KEY] >= lat_min)
+        & (stops_df[key.STOP_LAT_KEY] <= lat_max)
+        & (stops_df[key.STOP_LON_KEY] >= lon_min)
+        & (stops_df[key.STOP_LON_KEY] <= lon_max)
     ]
 
 
@@ -130,7 +130,7 @@ def reconcile_trips_and_stop_times_with_stops(
     stops_df: pd.DataFrame,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Trim trips and stop times to the given stops.
+    Crop trips and stop times to the given stops.
     """
     stop_ids = stops_df[key.STOP_ID_KEY].unique()
     stop_times_df = stop_times_df[stop_times_df[key.STOP_ID_KEY].isin(stop_ids)]
@@ -148,7 +148,7 @@ def crop_trips(
     time_end: datetime,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Trim trips to those that occur within the given time range.
+    Crop trips to those that occur within the given time range.
     """
     parsed_calendar_df = calendar_df.copy()
     parsed_calendar_df[key.CALENDAR_START_DATE_KEY] = pd.to_datetime(
@@ -177,7 +177,7 @@ def reconcile_stop_times_with_trips(
     trips_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Trim stop times to those that occur within the given trips.
+    Crop stop times to those that occur within the given trips.
     """
     trip_ids = trips_df[key.TRIP_ID_KEY].unique()
     stop_times_df = stop_times_df[stop_times_df[key.TRIP_ID_KEY].isin(trip_ids)]
@@ -190,7 +190,7 @@ def reconcile_stops_with_stop_times(
     stop_times_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Trim stops to those that occur within the given stop times.
+    Crop stops to those that occur within the given stop times.
     """
     stop_ids = stop_times_df[key.STOP_ID_KEY].unique()
     stops_df = stops_df[stops_df[key.STOP_ID_KEY].isin(stop_ids)]

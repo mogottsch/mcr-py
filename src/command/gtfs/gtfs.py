@@ -1,11 +1,11 @@
 from datetime import datetime
 from typing_extensions import Annotated
-from matplotlib import os
 import typer
 
 from package import key, storage
 from package.gtfs import clean, catalog, crop
 from package.logger import Timed
+from command.gtfs import read
 
 
 app = typer.Typer()
@@ -129,3 +129,6 @@ def clean_gtfs(
 @app.callback(invoke_without_command=True, no_args_is_help=True)
 def main():
     pass
+
+
+app.add_typer(read.app, name=key.GTFS_SUB_UPPER_READ_COMMAND_NAME)
