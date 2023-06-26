@@ -43,5 +43,3 @@ def _build_tree_from_list(data, parent=None):
             parent.add(str(item))
 
     return parent
-
-

@@ -5,6 +5,7 @@ import typer
 from package import storage
 from package.footpaths import generate as direct_generate
 from package.key import COMPLETE_GTFS_CLEAN_COMMAND_NAME, STOPS_KEY, FOOTPATHS_KEY
+from package.logger import Timed
 
 CLEAN_STOPS_FILENAME = storage.get_df_filename_for_name(STOPS_KEY)
 
@@ -61,13 +62,14 @@ def generate(
         max_walking_duration,
         output,
     )
-    footpaths = direct_generate(
-        city_id,
-        osm,
-        stops,
-        avg_walking_speed,
-        max_walking_duration,
-    )
+    with Timed.info("Generating footpaths"):
+        footpaths = direct_generate(
+            city_id,
+            osm,
+            stops,
+            avg_walking_speed,
+            max_walking_duration,
+        )
 
     storage.write_any_dict({FOOTPATHS_KEY: footpaths}, output)
 

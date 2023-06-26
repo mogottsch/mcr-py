@@ -35,6 +35,7 @@ def generate(
     osm_reader = osm.new_osm_reader(osm_path)
 
     with Timed.info("Reading OSM network"):
+        # TODO: optimally we should first crop the data and then read the network
         nodes, edges = osm.read_network(osm_reader)
 
     with Timed.info("Reading stops"):

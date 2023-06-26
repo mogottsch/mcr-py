@@ -45,7 +45,9 @@ def build_structures(
         times_by_stop_by_trip = create_times_by_stop_by_trip(stop_times_by_trip)
 
     with Timed.info("Creating id sets"):
-        stop_id_set, route_id_set, trip_id_set = create_id_sets(trips_df, routes_by_stop)
+        stop_id_set, route_id_set, trip_id_set = create_id_sets(
+            trips_df, routes_by_stop
+        )
 
     data = {
         STOP_TIMES_BY_TRIP_KEY: stop_times_by_trip,
@@ -64,16 +66,18 @@ def build_structures(
 def create_stop_times_by_trip(
     stop_times_df: pd.DataFrame,
 ) -> dict[str, list[dict[str, str]]]:
-    stop_times_by_trip_df = stop_times_df.groupby("trip_id").apply(
-        lambda x: x.sort_values("stop_sequence")
-    )[["arrival_time", "departure_time", "stop_id", "stop_sequence"]]
+    with Timed.debug("grouping by trip and sorting by stop sequence"):
+        stop_times_by_trip_df = stop_times_df.groupby("trip_id").apply(
+            lambda x: x.sort_values("stop_sequence")
+        )[["arrival_time", "departure_time", "stop_id", "stop_sequence"]]
 
     stop_times_by_trip: dict[str, list[dict[str, str]]] = {}
 
-    for (trip_id, _), data in stop_times_by_trip_df.to_dict("index").items():
-        stop_times = stop_times_by_trip.get(trip_id, [])
-        stop_times.append(data)
-        stop_times_by_trip[trip_id] = stop_times
+    with Timed.debug("creating stop_times_by_trip dictionary from dataframe"):
+        for (trip_id, _), data in stop_times_by_trip_df.to_dict("index").items():
+            stop_times = stop_times_by_trip.get(trip_id, [])
+            stop_times.append(data)
+            stop_times_by_trip[trip_id] = stop_times
 
     return stop_times_by_trip
 

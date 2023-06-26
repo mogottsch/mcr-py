@@ -1,11 +1,13 @@
 from typing_extensions import Any
 import requests
-
 from matplotlib import tempfile
 import pandas as pd
 import geopandas as gpd
 import os
 import pickle
+
+from package.gtfs import dtypes
+from package.logger import llog
 
 
 def write_dfs_dict(dfs_dict: dict[str, pd.DataFrame], output_path: str):
@@ -28,12 +30,15 @@ def get_df_filename_for_name(name: str) -> str:
 
 
 def read_df(path: str) -> pd.DataFrame:
-    return pd.read_csv(path, dtype={"route_id": str, "trip_id": str, "stop_id": str})
+    return pd.read_csv(path, dtype=dtypes.GTFS_DTYPES)
 
 
 def read_gdf(path: str) -> gpd.GeoDataFrame:
     return gpd.read_file(
-        path, GEOM_POSSIBLE_NAMES="geometry", KEEP_GEOM_COLUMNS="NO"
+        path,
+        GEOM_POSSIBLE_NAMES="geometry",
+        KEEP_GEOM_COLUMNS="NO",
+        dtype=dtypes.GTFS_DTYPES, # not working
     ).set_crs("EPSG:4326")
 
 
