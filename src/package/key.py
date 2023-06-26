@@ -13,6 +13,10 @@ SERVICE_ID_KEY = "service_id"
 STOP_NAME_KEY = "stop_name"
 CALENDAR_START_DATE_KEY = "start_date"
 CALENDAR_END_DATE_KEY = "end_date"
+STOP_TIME_ARRIVAL_TIME_KEY = "arrival_time"
+STOP_TIME_DEPARTURE_TIME_KEY = "departure_time"
+STOP_SEQUENCE_KEY = "stop_sequence"
+STOP_HEADSIGN_KEY = "stop_headsign"
 
 CALENDAR_DATE_TIME_FORMAT = "%Y%m%d"
 

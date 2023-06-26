@@ -1,12 +1,15 @@
 import zipfile
 
 import pandas as pd
+from package.gtfs import dtypes
+
 
 from package.key import (
     STOP_TIMES_KEY,
     TRIPS_KEY,
     STOPS_KEY,
 )
+from package.logger import llog
 
 
 def get_gtfs_filename(name: str) -> str:
@@ -50,7 +53,8 @@ def read_dfs(gtfs_zip_path: str) -> dict[str, pd.DataFrame]:
 
 def read_file(zip_ref: zipfile.ZipFile, file: str) -> pd.DataFrame:
     with zip_ref.open(file) as f:
-        df = pd.read_csv(f)
+        llog.debug(f"Reading {file}")
+        df = pd.read_csv(f, dtype=dtypes.STOP_TIME_DTYPES)
         return df
 
 
