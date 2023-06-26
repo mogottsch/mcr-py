@@ -32,13 +32,12 @@ def get_df_filename_for_name(name: str) -> str:
 def read_df(path: str) -> pd.DataFrame:
     return pd.read_csv(path, dtype=dtypes.GTFS_DTYPES)
 
-
 def read_gdf(path: str) -> gpd.GeoDataFrame:
     return gpd.read_file(
         path,
         GEOM_POSSIBLE_NAMES="geometry",
         KEEP_GEOM_COLUMNS="NO",
-        dtype=dtypes.GTFS_DTYPES, # not working
+        dtype=dtypes.GTFS_DTYPES,  # not working
     ).set_crs("EPSG:4326")
 
 

@@ -1,4 +1,4 @@
-from typing import Any, Tuple
+from typing import Any
 import pandas as pd
 from package.logger import Timed
 
@@ -34,7 +34,7 @@ def build_structures(
     with Timed.info("Creating `stop_times_by_trip`"):
         stop_times_by_trip = create_stop_times_by_trip(stop_times_df)
     with Timed.info("Creating `trip_ids_by_route`"):
-        trip_ids_by_route = create_trip_ids_by_route(trips_df)
+        trip_ids_by_route = create_trip_ids_by_route_sorted_by_departure(trips_df)
     with Timed.info("Creating `stops_by_route`"):
         stops_by_route = create_stops_by_route(trip_ids_by_route, stop_times_by_trip)
     with Timed.info("Creating `routes_by_stop`"):
@@ -82,46 +82,46 @@ def create_stop_times_by_trip(
     return stop_times_by_trip
 
 
-def create_trip_ids_by_route(trips_df: pd.DataFrame) -> dict[str, list[str]]:
-    return trips_df.groupby("route_id")["trip_id"].apply(lambda x: x.tolist()).to_dict()
+def create_trip_ids_by_route_sorted_by_departure(
+    trips_df: pd.DataFrame,
+) -> dict[str, list[str]]:
+    return (
+        trips_df.sort_values("trip_departure_time")
+        .groupby("route_id")["trip_id"]
+        .apply(lambda x: x.tolist())
+        .to_dict()
+    )
 
 
 def create_stops_by_route(
     trip_ids_by_route: dict[str, list[str]],
     stop_times_by_trip: dict[str, list[dict[str, str]]],
-) -> dict[str, list[tuple[str, int]]]:
-    stops_by_route: dict[str, list[tuple[str, int]]] = {}
+) -> dict[str, list[str]]:
+    stops_by_route: dict[str, list[str]] = {}
     for route_id, trip_ids in trip_ids_by_route.items():
-        stops_ordered = []
-        stops = (
-            set()
-        )  # we only need the ordered stops, but use the set to check for duplicates
+        stops_ordered: list[str] = []
+        # we only need the ordered stops, but use the set to check for duplicates
+        stops = set()
         for trip_id in trip_ids:
             trip_stop_times = stop_times_by_trip[trip_id]
 
-            # stop_times_by_trip_dict = stop_times_by_trips_by_route.get(route_id, {})
-            # stop_times_by_trip_dict[trip_id] = trip_stop_times
-            # stop_times_by_trips_by_route[route_id] = stop_times_by_trip_dict
-
             for stop_time in trip_stop_times:
-                stop_in_route = (stop_time["stop_id"], stop_time["stop_sequence"])
-                if stop_in_route not in stops:
-                    stops_ordered.append(stop_in_route)
-                    stops.add(stop_in_route)
+                stop = stop_time["stop_id"]
+                if stop not in stops:
+                    stops_ordered.append(stop)
+                    stops.add(stop)
 
         stops_by_route[route_id] = stops_ordered
 
     return stops_by_route
 
 
-def create_routes_by_stop(
-    stops_by_route: dict[str, list[tuple[str, int]]]
-) -> dict[str, list[str]]:
-    routes_by_stop: dict[str, list[str]] = {}
+def create_routes_by_stop(stops_by_route: dict[str, list[str]]) -> dict[str, set[str]]:
+    routes_by_stop: dict[str, set[str]] = {}
     for route_id, stops in stops_by_route.items():
-        for stop_id, _ in stops:
-            routes = routes_by_stop.get(stop_id, [])
-            routes.append(route_id)
+        for stop_id in stops:
+            routes = routes_by_stop.get(stop_id, set())
+            routes.add(route_id)
             routes_by_stop[stop_id] = routes
 
     assert type(list(routes_by_stop.keys())[0]) == str
@@ -130,7 +130,7 @@ def create_routes_by_stop(
 
 
 def create_id_sets(
-    trips_df: pd.DataFrame, routes_by_stop: dict[str, list[str]]
+    trips_df: pd.DataFrame, routes_by_stop: dict[str, set[str]]
 ) -> tuple[set[str], set[str], set[str]]:
     stop_id_set = set(routes_by_stop.keys())  # some stops are not part of any trip
     route_id_set = set(trips_df["route_id"].unique())
@@ -140,11 +140,10 @@ def create_id_sets(
 
 
 def create_idx_by_stop_by_route(
-    stops_by_route: dict[str, list[tuple[str, int]]]
+    stops_by_route: dict[str, list[str]]
 ) -> dict[str, dict[str, int]]:
     idx_by_stop_by_route = {
-        k: {stop: stop_seq for (stop, stop_seq) in (v)}
-        for k, v in stops_by_route.items()
+        k: {stop: idx for idx, stop in enumerate(v)} for k, v in stops_by_route.items()
     }
     return idx_by_stop_by_route
 

@@ -26,7 +26,7 @@ def raptor(
     start_stop_id: Annotated[str, typer.Option(help="Start stop ID")],
     end_stop_id: Annotated[str, typer.Option(help="End stop ID")],
     start_time: Annotated[str, typer.Option(help="Start time in HH:MM:SS")],
-    output: Annotated[str, typer.Option(help="Output file in pickle format")],
+    output: Annotated[str, typer.Option(help="Output directory")],
     max_transfers: Annotated[int, typer.Option(help="Maximum number of transfers")] = 3,
     default_transfer_time: Annotated[
         int, typer.Option(help="Transfer time used when tranfering at the same stop")
@@ -52,7 +52,7 @@ def raptor(
     build.validate_structs_dict(structs_dict)
 
     with Timed.info("Running RAPTOR"):
-        arrival_times = raptor_direct(
+        arrival_times, tracer_map = raptor_direct(
             structs_dict,
             footpaths_dict,
             start_stop_id,
@@ -65,7 +65,10 @@ def raptor(
     arrival_times_df = pd.DataFrame.from_dict(
         arrival_times, orient="index", columns=["arrival_time"]
     ).reset_index(names="stop_id")
-    storage.write_df(arrival_times_df, output)
+    storage.write_df(arrival_times_df, os.path.join(output, "arrival_times.csv"))
+    storage.write_any_dict(
+        {"tracer_map": tracer_map}, os.path.join(output, "tracer_map.pkl")
+    )
 
 
 def validate_flags(

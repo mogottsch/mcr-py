@@ -1,6 +1,7 @@
 from typing import Optional, Tuple
 
 from matplotlib import sys
+from rich.pretty import pprint
 
 from package import strtime
 from package.key import (
@@ -15,6 +16,12 @@ from package.key import (
     TRIP_ID_SET_KEY,
 )
 from package.logger import llog
+from package.tracer import (
+    TraceStart,
+    TraceTrip,
+    TraceFootpath,
+    TracerMap,
+)
 
 
 def raptor(
@@ -25,7 +32,7 @@ def raptor(
     start_time_str: str,
     max_transfers: int,
     default_transfer_time: int,
-):
+) -> Tuple[dict[str, str], TracerMap]:
     (
         stop_times_by_trip,
         trip_ids_by_route,
@@ -65,55 +72,81 @@ def raptor(
         assert type(departure_time) == int
         return departure_time
 
-    def earliest_trip(route_id: str, stop_id: str, arrival_time: int, change_time: int):
-        trip_ids = trip_ids_by_route[route_id]
+    def earliest_trip(
+        route_id: str, stop_id: str, arrival_time: int, change_time: int
+    ) -> Optional[Tuple[str, int]]:
+        trip_ids = trip_ids_by_route[route_id]  # sorted by departure time
         for trip_id in trip_ids:
-            if get_departure_time(trip_id, stop_id) >= arrival_time + change_time:
-                return trip_id
+            departure_time = get_departure_time(trip_id, stop_id)
+            if departure_time >= arrival_time + change_time:
+                return trip_id, departure_time
 
     # --- end helper methods ---
 
-    tau_i, tau_best, marked_stops = init(stop_id_set, start_stop_id, start_time)
+    tau_i, tau_best, marked_stops, tracers_map = init(
+        stop_id_set, start_stop_id, start_time
+    )
 
     k = 0
     for k in range(1, max_transfers + 1):
         llog.debug(f"iteration {k}")
-        Q = {}
+        Q: dict[str, tuple[str, int]] = {}
         tau_i[k] = tau_i[k - 1].copy()
 
         for stop_id in marked_stops:
             for route_id in get_routes_serving_stop(stop_id):
+                idx = get_idx_of_stop_in_route(stop_id, route_id)
                 if route_id not in Q:
-                    Q[route_id] = stop_id
+                    Q[route_id] = (stop_id, idx)
                     continue
 
                 # if our stop is closer to the start than the existing one, we replace it
-                existing_stop_id = Q[route_id]
-                idx = get_idx_of_stop_in_route(stop_id, route_id)
-                existing_idx = get_idx_of_stop_in_route(existing_stop_id, route_id)
+                _, existing_idx = Q[route_id]
                 if idx < existing_idx:
-                    Q[route_id] = stop_id
+                    Q[route_id] = (stop_id, idx)
 
         llog.debug(f"Q: {Q}")
         marked_stops = set()
 
-        for route_id, stop_id in Q.items():
-            trip_id = None
-            for stop_id, _ in stops_by_route[route_id]:
+        for route_id, (stop_id, idx) in Q.items():
+            trip_id: Optional[str] = None
+            hop_on_stop_id: Optional[str] = None
+            hop_on_time: Optional[int] = None
+            for stop_id in stops_by_route[route_id][idx:]:
                 if trip_id is not None and get_arrival_time(trip_id, stop_id) < min(
                     tau_best[stop_id], tau_best[end_stop_id]
                 ):
                     arrival_time = get_arrival_time(trip_id, stop_id)
                     assert type(arrival_time) == int
+                    assert arrival_time >= start_time
                     tau_i[k][stop_id] = arrival_time
                     tau_best[stop_id] = arrival_time
+
+                    if hop_on_stop_id is None or hop_on_time is None:
+                        raise Exception(
+                            "hop_on_stop_id or hop_on_time should not be None if trip_id is not None"
+                        )
+                    tracers_map.add(
+                        TraceTrip(
+                            start_stop_id=hop_on_stop_id,
+                            end_stop_id=stop_id,
+                            departure_time=hop_on_time,
+                            arrival_time=arrival_time,
+                            trip_id=trip_id,
+                        ),
+                    )
+
                     marked_stops.add(stop_id)
 
                 ready_to_depart = tau_i[k - 1][stop_id] + default_transfer_time
                 if ready_to_depart < get_departure_time(trip_id, stop_id):
-                    trip_id = earliest_trip(
+                    result = earliest_trip(
                         route_id, stop_id, ready_to_depart, default_transfer_time
                     )
+                    if result is None:
+                        continue
+                    trip_id, hop_on_time = result
+                    hop_on_stop_id = stop_id
 
         additional_marked_stops = set()
         for stop_id in marked_stops:
@@ -129,9 +162,15 @@ def raptor(
                     tau_best[nearby_stop_id], tau_best[end_stop_id]
                 ):
                     assert type(nearby_stop_arrival_time) == int
+                    assert nearby_stop_arrival_time >= start_time
                     tau_i[k][nearby_stop_id] = nearby_stop_arrival_time
                     tau_best[nearby_stop_id] = nearby_stop_arrival_time
                     additional_marked_stops.add(nearby_stop_id)
+
+                    tracers_map.add(
+                        TraceFootpath(stop_id, nearby_stop_id, walking_time),
+                    )
+
         marked_stops.update(additional_marked_stops)
 
         llog.debug(f"marked_stops: {marked_stops}")
@@ -141,7 +180,7 @@ def raptor(
             break
 
     llog.info(f"RAPTOR finished after {k} iterations")
-    return seconds_dict_to_times_dict(tau_best)
+    return seconds_dict_to_times_dict(tau_best), tracers_map
 
 
 def unpack_structs(structs: dict):
@@ -160,10 +199,11 @@ def unpack_structs(structs: dict):
 
 def init(
     stop_id_set: set, start_stop_id: str, start_time: int
-) -> Tuple[dict[int, dict[str, int]], dict[str, int], set[str]]:
+) -> Tuple[dict[int, dict[str, int]], dict[str, int], set[str], TracerMap,]:
     tau_i: dict[int, dict[str, int]] = {
         0: {},
     }
+    tracer = TracerMap(stop_id_set)
     tau_best = {}
     marked_stops = set()
 
@@ -173,10 +213,13 @@ def init(
 
     tau_i[0][start_stop_id] = start_time
     tau_best[start_stop_id] = start_time
+    tracer.add(
+        tracer=TraceStart(start_stop_id, start_time),
+    )
 
     marked_stops.add(start_stop_id)
 
-    return tau_i, tau_best, marked_stops
+    return tau_i, tau_best, marked_stops, tracer
 
 
 def seconds_dict_to_times_dict(seconds_dict: dict[str, int]) -> dict[str, str]:
