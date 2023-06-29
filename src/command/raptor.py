@@ -5,7 +5,7 @@ from geopandas import pd
 from pyrosm.data import os
 import typer
 
-from package import storage
+from package import output, storage
 from package import key
 from package.structs import build
 from package.key import BUILD_STRUCTURES_COMMAND_NAME, FOOTPATHS_COMMAND_NAME
@@ -28,7 +28,7 @@ def raptor(
     structs: Annotated[str, typer.Option(help=STRUCTS_HELP)],
     start_stop_id: Annotated[str, typer.Option(help="Start stop ID")],
     start_time: Annotated[str, typer.Option(help="Start time in HH:MM:SS")],
-    output: Annotated[str, typer.Option(help="Output directory")],
+    output_dir: Annotated[str, typer.Option(help="Output directory")],
     end_stop_id: Annotated[Optional[str], typer.Option(help="End stop ID")] = None,
     max_transfers: Annotated[int, typer.Option(help="Maximum number of transfers")] = 3,
     default_transfer_time: Annotated[
@@ -43,7 +43,7 @@ def raptor(
         start_stop_id,
         end_stop_id,
         start_time,
-        output,
+        output_dir,
     )
 
     footpaths_dict = storage.read_any_dict(footpaths)
@@ -69,11 +69,11 @@ def raptor(
         arrival_times, orient="index", columns=["arrival_time"]
     ).reset_index(names="stop_id")
     storage.write_df(
-        arrival_times_df, os.path.join(output, key.RAPTOR_ARRIVAL_TIMES_FILE_NAME)
+        arrival_times_df, os.path.join(output_dir, key.RAPTOR_ARRIVAL_TIMES_FILE_NAME)
     )
     storage.write_any_dict(
         {key.TRACER_MAP_KEY: tracer_map},
-        os.path.join(output, key.RAPTOR_TRACE_FILE_NAME),
+        os.path.join(output_dir, key.RAPTOR_TRACE_FILE_NAME),
     )
 
 
