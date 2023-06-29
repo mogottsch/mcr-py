@@ -2,6 +2,7 @@ TRIPS_KEY = "trips"
 STOP_TIMES_KEY = "stop_times"
 STOPS_KEY = "stops"
 CALENDAR_KEY = "calendar"
+ROUTES_KEY = "routes"
 
 
 # GTFS data keys
@@ -19,6 +20,8 @@ STOP_TIME_ARRIVAL_TIME_KEY = "arrival_time"
 STOP_TIME_DEPARTURE_TIME_KEY = "departure_time"
 STOP_SEQUENCE_KEY = "stop_sequence"
 STOP_HEADSIGN_KEY = "stop_headsign"
+ROUTE_SHORT_NAME_KEY = "route_short_name"
+TRIP_HEADSIGN_KEY = "trip_headsign"
 
 CALENDAR_DATE_TIME_FORMAT = "%Y%m%d"
 
@@ -63,6 +66,10 @@ TMP_OSM_DIR_NAME = "osm"
 TMP_GTFS_DIR_NAME = "gtfs"
 TMP_GTFS_CATALOG_FILE_NAME = "catalog.csv"
 
+## output
+RAPTOR_ARRIVAL_TIMES_FILE_NAME = "arrival_times.csv"
+RAPTOR_TRACE_FILE_NAME = "tracer_map.pkl"
+
 
 # urls
 GTFS_CATALOG_URL = "https://bit.ly/catalogs-csv"  # https://database.mobilitydata.org/
@@ -70,3 +77,6 @@ GTFS_CATALOG_URL = "https://bit.ly/catalogs-csv"  # https://database.mobilitydat
 
 DATE_TIME_FORMAT = "%d.%m.%Y-%H:%M:%S"
 DATE_TIME_FORMAT_HUMAN_READABLE = "DD.MM.YYYY-HH:MM:SS"
+
+# pkl data keys
+TRACER_MAP_KEY = "tracer_map"

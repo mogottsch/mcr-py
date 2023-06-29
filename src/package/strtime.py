@@ -1,4 +1,4 @@
-from matplotlib import sys
+import sys
 
 
 def str_time_to_seconds(str_time: str) -> int:
@@ -7,6 +7,10 @@ def str_time_to_seconds(str_time: str) -> int:
     Can handle times that go past midnight.
     """
     hours, minutes, seconds = map(int, str_time.split(":"))
+
+    if minutes >= 60 or seconds >= 60:
+        raise ValueError("Invalid time format")
+
     total_seconds = hours * 3600 + minutes * 60 + seconds
     return total_seconds
 

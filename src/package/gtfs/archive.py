@@ -20,6 +20,7 @@ STOPS_FILE = get_gtfs_filename(STOPS_KEY)
 TRIPS_FILE = get_gtfs_filename(TRIPS_KEY)
 STOP_TIMES_FILE = get_gtfs_filename(STOP_TIMES_KEY)
 CALENDAR_FILE = get_gtfs_filename("calendar")
+ROUTES_FILE = get_gtfs_filename("routes")
 
 
 EXPECTED_FILES = [
@@ -27,6 +28,7 @@ EXPECTED_FILES = [
     TRIPS_FILE,
     STOP_TIMES_FILE,
     CALENDAR_FILE,
+    ROUTES_FILE,
 ]
 
 
@@ -54,7 +56,7 @@ def read_dfs(gtfs_zip_path: str) -> dict[str, pd.DataFrame]:
 def read_file(zip_ref: zipfile.ZipFile, file: str) -> pd.DataFrame:
     with zip_ref.open(file) as f:
         llog.debug(f"Reading {file}")
-        df = pd.read_csv(f, dtype=dtypes.GTFS_DTYPES)
+        df = pd.read_csv(f, dtype=dtypes.GTFS_DTYPES)  # type: ignore
         return df
 
 

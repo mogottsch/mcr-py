@@ -29,6 +29,9 @@ containing {CLEAN_STOPS_FILENAME}, as given by the output of the \
 {COMPLETE_GTFS_CLEAN_COMMAND_NAME} command.
 """
 
+DEFAULT_MAX_WALKING_DURATION = 10 * 60
+DEFAULT_AVG_WALKING_SPEED = 1.4
+
 
 def generate(
     output: Annotated[str, typer.Option(help="Output file in pickle format.")],
@@ -38,14 +41,13 @@ def generate(
         typer.Option(
             help="Average walking speed in meters per second.",
         ),
-    ] = 1.4,
+    ] = DEFAULT_AVG_WALKING_SPEED,
     max_walking_duration: Annotated[
         int,
         typer.Option(
             help="Maximum walking duration in seconds.",
         ),
-    ] = 10
-    * 60,
+    ] = DEFAULT_MAX_WALKING_DURATION,
     city_id: Annotated[
         str,
         typer.Option(

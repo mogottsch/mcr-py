@@ -21,3 +21,5 @@ dependencies:
   - rich
   # optional
   - folium
+  # environment
+  - pytest

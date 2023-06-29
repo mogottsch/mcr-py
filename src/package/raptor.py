@@ -16,7 +16,7 @@ from package.key import (
     TRIP_ID_SET_KEY,
 )
 from package.logger import llog
-from package.tracer import (
+from package.tracer.tracer import (
     TraceStart,
     TraceTrip,
     TraceFootpath,
@@ -28,21 +28,21 @@ def raptor(
     structs: dict,
     footpaths: dict,
     start_stop_id: str,
-    end_stop_id: str,
+    end_stop_id: Optional[str],
     start_time_str: str,
     max_transfers: int,
     default_transfer_time: int,
 ) -> Tuple[dict[str, str], TracerMap]:
     (
-        stop_times_by_trip,
+        # stop_times_by_trip,
         trip_ids_by_route,
         stops_by_route,
         idx_by_stop_by_route,
         routes_by_stop,
         times_by_stop_by_trip,
         stop_id_set,
-        route_id_set,
-        trip_id_set,
+        # route_id_set,
+        # trip_id_set,
     ) = unpack_structs(structs)
 
     start_time = strtime.str_time_to_seconds(start_time_str)
@@ -113,8 +113,11 @@ def raptor(
             hop_on_stop_id: Optional[str] = None
             hop_on_time: Optional[int] = None
             for stop_id in stops_by_route[route_id][idx:]:
+                tau_best_end_stop_id = (
+                    tau_best[end_stop_id] if end_stop_id else sys.maxsize
+                )
                 if trip_id is not None and get_arrival_time(trip_id, stop_id) < min(
-                    tau_best[stop_id], tau_best[end_stop_id]
+                    tau_best[stop_id], tau_best_end_stop_id
                 ):
                     arrival_time = get_arrival_time(trip_id, stop_id)
                     assert type(arrival_time) == int
@@ -153,13 +156,16 @@ def raptor(
             for nearby_stop_id, walking_time in footpaths[stop_id].items():
                 nearby_stop_arrival_time = tau_i[k][stop_id] + walking_time
 
+                tau_best_end_stop_id = (
+                    tau_best[end_stop_id] if end_stop_id else sys.maxsize
+                )
                 # we have a couple of modifications here:
                 # 1. we only mark the stop if tau is actually updated
                 # 2. we use tau_best instead of tau_k (should not make a difference)
                 # 3. we also consider tau_best[end_stop_id] just like in the stop before
                 # 4. we also update tau_best
                 if nearby_stop_arrival_time < min(
-                    tau_best[nearby_stop_id], tau_best[end_stop_id]
+                    tau_best[nearby_stop_id], tau_best_end_stop_id
                 ):
                     assert type(nearby_stop_arrival_time) == int
                     assert nearby_stop_arrival_time >= start_time
@@ -185,15 +191,15 @@ def raptor(
 
 def unpack_structs(structs: dict):
     return (
-        structs[STOP_TIMES_BY_TRIP_KEY],
+        # structs[STOP_TIMES_BY_TRIP_KEY],
         structs[TRIP_IDS_BY_ROUTE_KEY],
         structs[STOPS_BY_ROUTE_KEY],
         structs[IDX_BY_STOP_BY_ROUTE_KEY],
         structs[ROUTES_BY_STOP_KEY],
         structs[TIMES_BY_STOP_BY_TRIP_KEY],
         structs[STOP_ID_SET_KEY],
-        structs[ROUTE_ID_SET_KEY],
-        structs[TRIP_ID_SET_KEY],
+        # structs[ROUTE_ID_SET_KEY],
+        # structs[TRIP_ID_SET_KEY],
     )
 
 

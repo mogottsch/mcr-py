@@ -1,6 +1,3 @@
-import folium
-import pandas as pd
-
 from package import strtime
 
 
@@ -19,12 +16,15 @@ class MovingTrace(Trace):
 
 class TracerMap:
     def __init__(self, stop_ids: set[str]):
-        self.tracers = {stop_id: [] for stop_id in stop_ids}
+        self.tracers: dict[str, list[Trace]] = {stop_id: [] for stop_id in stop_ids}
 
     def __str__(self):
         return "\n".join(
             [f"{stop_id}: {tracers}" for stop_id, tracers in self.tracers.items()]
         )
+
+    def __repr__(self):
+        return self.__str__()
 
     def __getitem__(self, stop_id: str):
         return self.tracers[stop_id]
@@ -35,6 +35,14 @@ class TracerMap:
             start_stop_id = tracer.start_stop_id
 
             previous_tracers = self.tracers[start_stop_id]
+
+            if len(previous_tracers) == 0 or not isinstance(
+                previous_tracers[0], TraceStart
+            ):
+                raise ValueError(
+                    f"The first tracer for stop {start_stop_id} must be a TraceStart"
+                )
+
             new_tracers = previous_tracers + [tracer]
 
             self.tracers[end_stop_id] = new_tracers
@@ -51,6 +59,15 @@ class TraceStart(Trace):
 
     def __str__(self):
         return f"Start at {self.start_stop_id} at {strtime.seconds_to_str_time(self.start_time)}"
+
+
+class EnrichedTraceStart(TraceStart):
+    def __init__(self, trace_start: TraceStart, start_stop_name: str):
+        super().__init__(trace_start.start_stop_id, trace_start.start_time)
+        self.start_stop_name = start_stop_name
+
+    def __str__(self):
+        return f"Start at {self.start_stop_name} ({self.start_stop_id}) at {strtime.seconds_to_str_time(self.start_time)}"
 
 
 class TraceTrip(MovingTrace):
@@ -75,6 +92,32 @@ class TraceTrip(MovingTrace):
         )
 
 
+class EnrichedTraceTrip(TraceTrip):
+    def __init__(
+        self,
+        trace_trip: TraceTrip,
+        trip_name: str,
+        start_stop_name: str,
+        end_stop_name: str,
+    ):
+        super().__init__(
+            trace_trip.start_stop_id,
+            trace_trip.departure_time,
+            trace_trip.end_stop_id,
+            trace_trip.arrival_time,
+            trace_trip.trip_id,
+        )
+        self.trip_name = trip_name
+        self.start_stop_name = start_stop_name
+        self.end_stop_name = end_stop_name
+
+    def __str__(self):
+        return (
+            f"Trip {self.trip_name} from {self.start_stop_name}@{strtime.seconds_to_str_time(self.departure_time)} to "
+            + f"{self.end_stop_name}@{strtime.seconds_to_str_time(self.arrival_time)}"
+        )
+
+
 class TraceFootpath(MovingTrace):
     def __init__(self, start_stop_id: str, end_stop_id: str, walking_time: int):
         super().__init__(start_stop_id, end_stop_id)
@@ -84,54 +127,20 @@ class TraceFootpath(MovingTrace):
         return f"Walk from {self.start_stop_id} to {self.end_stop_id} in {strtime.seconds_to_str_time(self.walking_time)}"
 
 
-def add_tracer_list_to_folium_map(
-    tracers: list[Trace], folium_map: folium.Map, stops_df: pd.DataFrame
-):
-    stops_df = stops_df.copy().set_index("stop_id")
-    circle_marker_kwargs = {
-        "radius": 4,
-        "color": "cyan",
-        "fill": True,
-        "fill_color": "cyan",
-    }
-    for tracer in tracers:
-        if isinstance(tracer, TraceStart):
-            folium.CircleMarker(
-                location=stops_df.loc[tracer.start_stop_id, ["stop_lat", "stop_lon"]],
-                popup=tracer.__str__(),
-                **circle_marker_kwargs,
-            ).add_to(folium_map)
-        elif isinstance(tracer, TraceFootpath):
-            start_stop = stops_df.loc[tracer.start_stop_id]
-            end_stop = stops_df.loc[tracer.end_stop_id]
-            folium.PolyLine(
-                locations=[
-                    (start_stop["stop_lat"], start_stop["stop_lon"]),
-                    (end_stop["stop_lat"], end_stop["stop_lon"]),
-                ],
-                popup=tracer.__str__(),
-                color="blue",
-            ).add_to(folium_map)
-            folium.CircleMarker(
-                location=(end_stop["stop_lat"], end_stop["stop_lon"]),
-                popup=f"{end_stop['stop_name']} ({tracer.end_stop_id}) duration:{strtime.seconds_to_str_time(tracer.walking_time)}",
-                **circle_marker_kwargs,
-            ).add_to(folium_map)
-        elif isinstance(tracer, TraceTrip):
-            start_stop = stops_df.loc[tracer.start_stop_id]
-            end_stop = stops_df.loc[tracer.end_stop_id]
-            folium.PolyLine(
-                locations=[
-                    (start_stop["stop_lat"], start_stop["stop_lon"]),
-                    (end_stop["stop_lat"], end_stop["stop_lon"]),
-                ],
-                popup=tracer.__str__(),
-                color="blue",
-            ).add_to(folium_map)
-            folium.CircleMarker(
-                location=(end_stop["stop_lat"], end_stop["stop_lon"]),
-                popup=f"{end_stop['stop_name']} ({tracer.end_stop_id}) @ {strtime.seconds_to_str_time(tracer.arrival_time)}",
-                **circle_marker_kwargs,
-            ).add_to(folium_map)
-        else:
-            raise ValueError(f"Unknown tracer type {type(tracer)}")
+class EnrichedTraceFootpath(TraceFootpath):
+    def __init__(
+        self,
+        trace_footpath: TraceFootpath,
+        start_stop_name: str,
+        end_stop_name: str,
+    ):
+        super().__init__(
+            trace_footpath.start_stop_id,
+            trace_footpath.end_stop_id,
+            trace_footpath.walking_time,
+        )
+        self.start_stop_name = start_stop_name
+        self.end_stop_name = end_stop_name
+
+    def __str__(self):
+        return f"Walk from {self.start_stop_name} ({self.start_stop_id}) to {self.end_stop_name} ({self.end_stop_id}) in {strtime.seconds_to_str_time(self.walking_time)}"

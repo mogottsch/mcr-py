@@ -30,7 +30,8 @@ def get_df_filename_for_name(name: str) -> str:
 
 
 def read_df(path: str) -> pd.DataFrame:
-    return pd.read_csv(path, dtype=dtypes.GTFS_DTYPES)
+    return pd.read_csv(path, dtype=dtypes.GTFS_DTYPES)  # type: ignore
+
 
 def read_gdf(path: str) -> gpd.GeoDataFrame:
     return gpd.read_file(

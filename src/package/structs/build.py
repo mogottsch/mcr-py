@@ -36,7 +36,9 @@ def build_structures(
     with Timed.info("Creating `trip_ids_by_route`"):
         trip_ids_by_route = create_trip_ids_by_route_sorted_by_departure(trips_df)
     with Timed.info("Creating `stops_by_route`"):
-        stops_by_route = create_stops_by_route(trip_ids_by_route, stop_times_by_trip)
+        stops_by_route = create_stops_by_route_ordered(
+            trip_ids_by_route, stop_times_by_trip
+        )
     with Timed.info("Creating `routes_by_stop`"):
         routes_by_stop = create_routes_by_stop(stops_by_route)
     with Timed.info("Creating `idx_by_stop_by_route`"):
@@ -93,7 +95,7 @@ def create_trip_ids_by_route_sorted_by_departure(
     )
 
 
-def create_stops_by_route(
+def create_stops_by_route_ordered(
     trip_ids_by_route: dict[str, list[str]],
     stop_times_by_trip: dict[str, list[dict[str, str]]],
 ) -> dict[str, list[str]]:
@@ -161,28 +163,6 @@ def create_times_by_stop_by_trip(
         }
         for (trip_id, stops) in stop_times_by_trip.items()
     }
-
-
-# def get_idx_of_stop_in_route(stop_id, route_id):
-#     return stops_by_route_dict[route_id][stop_id]
-
-# def get_arrival_time(trip_id: str, stop_id: str) -> int:
-#     assert trip_id is not None
-#     assert stop_id is not None
-#
-#     arrival_time = times_by_stop_by_trip[trip_id][stop_id][0]
-#     assert type(arrival_time) == int
-#     return arrival_time
-
-# def get_departure_time(trip_id: str, stop_id: str) -> int:
-#     assert stop_id is not None
-#
-#     if trip_id is None:
-#         return sys.maxsize
-#
-#     departure_time = times_by_stop_by_trip[trip_id][stop_id][1]
-#     assert type(departure_time) == int
-#     return departure_time
 
 
 def validate_structs_dict(structs: dict):

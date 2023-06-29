@@ -7,7 +7,7 @@ from package.key import (
     TRIPS_KEY,
     STOP_TIMES_KEY,
 )
-from package.build import build_structures as build_structures_direct
+from package.structs.build import build_structures as build_structures_direct
 from package.logger import Timed
 
 

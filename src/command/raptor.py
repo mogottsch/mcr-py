@@ -1,10 +1,13 @@
+from typing import Optional
 from typing_extensions import Annotated
 from geopandas import pd
 
 from pyrosm.data import os
 import typer
 
-from package import build, storage
+from package import storage
+from package import key
+from package.structs import build
 from package.key import BUILD_STRUCTURES_COMMAND_NAME, FOOTPATHS_COMMAND_NAME
 from package.logger import Timed
 from package.raptor import raptor as raptor_direct
@@ -24,9 +27,9 @@ def raptor(
     footpaths: Annotated[str, typer.Option(help=FOOTPATHS_HELP)],
     structs: Annotated[str, typer.Option(help=STRUCTS_HELP)],
     start_stop_id: Annotated[str, typer.Option(help="Start stop ID")],
-    end_stop_id: Annotated[str, typer.Option(help="End stop ID")],
     start_time: Annotated[str, typer.Option(help="Start time in HH:MM:SS")],
     output: Annotated[str, typer.Option(help="Output directory")],
+    end_stop_id: Annotated[Optional[str], typer.Option(help="End stop ID")] = None,
     max_transfers: Annotated[int, typer.Option(help="Maximum number of transfers")] = 3,
     default_transfer_time: Annotated[
         int, typer.Option(help="Transfer time used when tranfering at the same stop")
@@ -65,9 +68,12 @@ def raptor(
     arrival_times_df = pd.DataFrame.from_dict(
         arrival_times, orient="index", columns=["arrival_time"]
     ).reset_index(names="stop_id")
-    storage.write_df(arrival_times_df, os.path.join(output, "arrival_times.csv"))
+    storage.write_df(
+        arrival_times_df, os.path.join(output, key.RAPTOR_ARRIVAL_TIMES_FILE_NAME)
+    )
     storage.write_any_dict(
-        {"tracer_map": tracer_map}, os.path.join(output, "tracer_map.pkl")
+        {key.TRACER_MAP_KEY: tracer_map},
+        os.path.join(output, key.RAPTOR_TRACE_FILE_NAME),
     )
 
 
@@ -77,7 +83,7 @@ def validate_flags(
     max_transfers: int,
     default_transfer_time: int,
     start_stop_id: str,
-    end_stop_id: str,
+    end_stop_id: Optional[str],
     start_time: str,
     output: str,
 ):

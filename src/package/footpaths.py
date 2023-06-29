@@ -23,7 +23,7 @@ def generate(
     stops_path: str,
     avg_walking_speed: float,
     max_walking_duration: int,
-):
+) -> dict[str, dict[str, int]]:
     osm_path = osm_path if osm_path else get_osm_path_from_city_id(city_id)
 
     if not os.path.exists(osm_path) and city_id:
@@ -132,7 +132,7 @@ def create_footpaths(
     stops_df: gpd.GeoDataFrame,
     nearby_stops_map: dict[str, list[str]],
     avg_walking_speed: float,
-):
+) -> dict[str, dict[str, int]]:
     global i_graph  # will be used during multiprocessing
     i_graph = i_graph_arg
 
@@ -164,7 +164,7 @@ def create_footpaths(
     for source_stop, nearby_stops_with_distance in zip(stop_list, res):
         nearby_stops_with_distance_map[source_stop] = nearby_stops_with_distance
 
-    nearby_stop_with_walking_time_map = {}
+    nearby_stop_with_walking_time_map: dict[str, dict[str, int]] = {}
     for (
         source_stop,
         nearby_stops_with_distance,

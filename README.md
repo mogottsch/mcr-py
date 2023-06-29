@@ -84,7 +84,7 @@ python src/main.py raptor \
 
 ```
 python src/main.py gtfs list --country-code de
-python src/main.py gtfs download 864 ./data/vrs.zip
+python src/main.py gtfs download 777 ./data/vrs.zip
 python src/main.py gtfs crop ./data/vrs.zip ./data/cologne_gtfs.zip \
     --lat-min=50.888361 \
     --lat-max=50.988361 \

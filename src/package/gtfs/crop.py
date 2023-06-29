@@ -21,11 +21,12 @@ def crop(
     with Timed.info("Reading GTFS data"):
         dfs = archive.read_dfs(path)
 
-    trips_df, stop_times_df, stops_df, calendar_df = (
+    trips_df, stop_times_df, stops_df, calendar_df, routes_df = (
         dfs[key.TRIPS_KEY],
         dfs[key.STOP_TIMES_KEY],
         dfs[key.STOPS_KEY],
         dfs[key.CALENDAR_KEY],
+        dfs[key.ROUTES_KEY],
     )
 
     n_trips, n_stop_times, n_stops = (
@@ -86,6 +87,7 @@ def crop(
             key.STOP_TIMES_KEY: stop_times_df,
             key.STOPS_KEY: stops_df,
             key.CALENDAR_KEY: calendar_df,
+            key.ROUTES_KEY: routes_df,  # todo this is not being cropped, but is small anyways
         },
         output,
     )
