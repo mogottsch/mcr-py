@@ -4,8 +4,8 @@ use polars::prelude::*;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 use pyo3_polars::PyDataFrame;
+use rayon::prelude::*;
 use std::collections::HashMap;
-use std::process;
 
 fn doube_series(s: &Series) -> Series {
     s * 2
@@ -28,6 +28,7 @@ struct Edge {
 
 #[pyfunction]
 fn query_multiple_one_to_many(
+    py: Python,
     raw_edges: Vec<HashMap<&str, &PyAny>>,
     source_target_nodes_map: HashMap<i64, Vec<i64>>,
 ) -> HashMap<usize, HashMap<usize, f64>> {
@@ -38,60 +39,56 @@ fn query_multiple_one_to_many(
 
     let graph = build_graph(edges);
 
-    let source_target_nodes_map = source_target_nodes_map
-        .into_iter()
-        .map(|(source, targets)| {
-            let source = translator.to_fast_graph_id(source);
-            let targets = targets
+    let source_target_nodes_distance_map: HashMap<usize, HashMap<usize, f64>> =
+        py.allow_threads(|| {
+            source_target_nodes_map
                 .into_iter()
-                .map(|target| translator.to_fast_graph_id(target))
-                .collect::<Vec<i64>>();
-            (source, targets)
-        })
-        .collect::<HashMap<i64, Vec<i64>>>();
+                .collect::<Vec<(i64, Vec<i64>)>>()
+                .par_iter()
+                .map(|(source, targets)| {
+                    let source = translator.to_fast_graph_id(*source);
+                    let targets = targets
+                        .into_iter()
+                        .map(|target| translator.to_fast_graph_id(*target))
+                        .collect::<Vec<i64>>();
 
-    let mut path_calculator = fast_paths::create_calculator(&graph);
+                    let mut path_calculator = fast_paths::create_calculator(&graph);
 
-    let source_target_nodes_distance_map = source_target_nodes_map
-        .into_iter()
-        .map(|(source, targets)| {
-            let source: usize = source.try_into().unwrap();
-            let targets: Vec<usize> = targets
-                .into_iter()
-                .map(|target| target.try_into().unwrap())
-                .collect::<Vec<usize>>();
+                    let distances = targets
+                        .iter()
+                        .map(|target| {
+                            let target = *target;
+                            let path = path_calculator.calc_path(
+                                &graph,
+                                source.try_into().unwrap(),
+                                target.try_into().unwrap(),
+                            );
 
-            let shortest_paths = targets
-                .clone()
-                .into_iter()
-                .map(|target| path_calculator.calc_path(&graph, source, target))
-                .collect::<Vec<_>>();
+                            let distance = path
+                                .as_ref()
+                                .map(|path| path.get_weight() as f64 / WEIGHT_PRECISION_MULTIPLIER)
+                                .unwrap_or(std::f64::INFINITY);
 
-            let distances = shortest_paths
-                .iter()
-                .zip(targets.iter())
-                .map(|(path, target)| {
-                    let distance = path
-                        .as_ref()
-                        .map(|path| path.get_weight() as f64 / WEIGHT_PRECISION_MULTIPLIER)
-                        .unwrap_or(std::f64::INFINITY);
-                    let i64_target: i64 = target.clone().try_into().unwrap();
+                            (
+                                translator
+                                    .to_original_id(target.try_into().unwrap())
+                                    .try_into()
+                                    .unwrap(),
+                                distance,
+                            )
+                        })
+                        .collect::<HashMap<usize, f64>>();
+
                     (
-                        translator.to_original_id(i64_target).try_into().unwrap(),
-                        distance,
+                        translator
+                            .to_original_id(source.try_into().unwrap())
+                            .try_into()
+                            .unwrap(),
+                        distances,
                     )
                 })
-                .collect::<HashMap<usize, f64>>();
-
-            (
-                translator
-                    .to_original_id(source.try_into().unwrap())
-                    .try_into()
-                    .unwrap(),
-                distances,
-            )
-        })
-        .collect::<HashMap<usize, HashMap<usize, f64>>>();
+                .collect()
+        });
 
     source_target_nodes_distance_map
 }
