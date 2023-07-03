@@ -65,15 +65,18 @@ def build_structures(
     return data
 
 
+StopTimesByTrip = dict[str, list[dict[str, str]]]
+
+
 def create_stop_times_by_trip(
     stop_times_df: pd.DataFrame,
-) -> dict[str, list[dict[str, str]]]:
+) -> StopTimesByTrip:
     with Timed.debug("grouping by trip and sorting by stop sequence"):
         stop_times_by_trip_df = stop_times_df.groupby("trip_id").apply(
             lambda x: x.sort_values("stop_sequence")
         )[["arrival_time", "departure_time", "stop_id", "stop_sequence"]]
 
-    stop_times_by_trip: dict[str, list[dict[str, str]]] = {}
+    stop_times_by_trip: StopTimesByTrip = {}
 
     with Timed.debug("creating stop_times_by_trip dictionary from dataframe"):
         for (trip_id, _), data in stop_times_by_trip_df.to_dict("index").items():
@@ -84,9 +87,12 @@ def create_stop_times_by_trip(
     return stop_times_by_trip
 
 
+TripIdsByRouteSortedByDeparture = dict[str, list[str]]
+
+
 def create_trip_ids_by_route_sorted_by_departure(
     trips_df: pd.DataFrame,
-) -> dict[str, list[str]]:
+) -> TripIdsByRouteSortedByDeparture:
     return (
         trips_df.sort_values("trip_departure_time")
         .groupby("route_id")["trip_id"]
@@ -95,11 +101,14 @@ def create_trip_ids_by_route_sorted_by_departure(
     )
 
 
+StopsByRouteOrdered = dict[str, list[str]]
+
+
 def create_stops_by_route_ordered(
-    trip_ids_by_route: dict[str, list[str]],
-    stop_times_by_trip: dict[str, list[dict[str, str]]],
-) -> dict[str, list[str]]:
-    stops_by_route: dict[str, list[str]] = {}
+    trip_ids_by_route: TripIdsByRouteSortedByDeparture,
+    stop_times_by_trip: StopTimesByTrip,
+) -> StopsByRouteOrdered:
+    stops_by_route: StopsByRouteOrdered = {}
     for route_id, trip_ids in trip_ids_by_route.items():
         stops_ordered: list[str] = []
         # we only need the ordered stops, but use the set to check for duplicates
@@ -118,8 +127,11 @@ def create_stops_by_route_ordered(
     return stops_by_route
 
 
-def create_routes_by_stop(stops_by_route: dict[str, list[str]]) -> dict[str, set[str]]:
-    routes_by_stop: dict[str, set[str]] = {}
+RoutesByStop = dict[str, set[str]]
+
+
+def create_routes_by_stop(stops_by_route: StopsByRouteOrdered) -> RoutesByStop:
+    routes_by_stop: RoutesByStop = {}
     for route_id, stops in stops_by_route.items():
         for stop_id in stops:
             routes = routes_by_stop.get(stop_id, set())
@@ -131,9 +143,13 @@ def create_routes_by_stop(stops_by_route: dict[str, list[str]]) -> dict[str, set
     return routes_by_stop
 
 
-def create_id_sets(
-    trips_df: pd.DataFrame, routes_by_stop: dict[str, set[str]]
-) -> tuple[set[str], set[str], set[str]]:
+StopIdSet = set[str]
+RouteIdSet = set[str]
+TripIdSet = set[str]
+IdSets = tuple[StopIdSet, RouteIdSet, TripIdSet]
+
+
+def create_id_sets(trips_df: pd.DataFrame, routes_by_stop: RoutesByStop) -> IdSets:
     stop_id_set = set(routes_by_stop.keys())  # some stops are not part of any trip
     route_id_set = set(trips_df["route_id"].unique())
     trip_id_set = set(trips_df["trip_id"].unique())
@@ -141,18 +157,24 @@ def create_id_sets(
     return stop_id_set, route_id_set, trip_id_set
 
 
+IdxByStopByRoute = dict[str, dict[str, int]]
+
+
 def create_idx_by_stop_by_route(
-    stops_by_route: dict[str, list[str]]
-) -> dict[str, dict[str, int]]:
+    stops_by_route: StopsByRouteOrdered,
+) -> IdxByStopByRoute:
     idx_by_stop_by_route = {
         k: {stop: idx for idx, stop in enumerate(v)} for k, v in stops_by_route.items()
     }
     return idx_by_stop_by_route
 
 
+TimesByStopByTrip = dict[str, dict[str, tuple[int, int]]]
+
+
 def create_times_by_stop_by_trip(
-    stop_times_by_trip: dict[str, list[dict[str, str]]]
-) -> dict[str, dict[str, tuple[int, int]]]:
+    stop_times_by_trip: StopTimesByTrip,
+) -> TimesByStopByTrip:
     return {
         trip_id: {
             stop["stop_id"]: (
@@ -169,3 +191,27 @@ def validate_structs_dict(structs: dict):
     for key in STRUCTS_KEYS:
         if not key in structs:
             raise Exception(f"Structs dict missing key {key}")
+
+
+def unpack_structs(
+    structs: dict,
+) -> tuple[
+    TripIdsByRouteSortedByDeparture,
+    StopsByRouteOrdered,
+    IdxByStopByRoute,
+    RoutesByStop,
+    TimesByStopByTrip,
+    StopIdSet,
+]:
+    validate_structs_dict(structs)
+    return (
+        # structs[STOP_TIMES_BY_TRIP_KEY],
+        structs[TRIP_IDS_BY_ROUTE_KEY],
+        structs[STOPS_BY_ROUTE_KEY],
+        structs[IDX_BY_STOP_BY_ROUTE_KEY],
+        structs[ROUTES_BY_STOP_KEY],
+        structs[TIMES_BY_STOP_BY_TRIP_KEY],
+        structs[STOP_ID_SET_KEY],
+        # structs[ROUTE_ID_SET_KEY],
+        # structs[TRIP_ID_SET_KEY],
+    )

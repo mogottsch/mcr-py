@@ -7,10 +7,10 @@ import typer
 
 from package import output, storage
 from package import key
+from package.raptor import Raptor
 from package.structs import build
 from package.key import BUILD_STRUCTURES_COMMAND_NAME, FOOTPATHS_COMMAND_NAME
 from package.logger import Timed
-from package.raptor import raptor as raptor_direct
 
 FOOTPATHS_HELP = f"""
 A path that should point to a pickle file containing footpaths, as generated \
@@ -55,14 +55,16 @@ def raptor(
     build.validate_structs_dict(structs_dict)
 
     with Timed.info("Running RAPTOR"):
-        arrival_times, tracer_map = raptor_direct(
+        r = Raptor(
             structs_dict,
             footpaths_dict,
+            max_transfers,
+            default_transfer_time,
+        )
+        arrival_times, tracer_map = r.run(
             start_stop_id,
             end_stop_id,
             start_time,
-            max_transfers,
-            default_transfer_time,
         )
 
     arrival_times_df = pd.DataFrame.from_dict(
