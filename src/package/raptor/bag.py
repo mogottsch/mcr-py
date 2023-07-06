@@ -12,10 +12,6 @@ class Label:
         return (
             self.arrival_time <= other.arrival_time
             and self.seconds_walked <= other.seconds_walked
-            # and (
-            #     self.arrival_time < other.arrival_time
-            #     or self.seconds_walked < other.seconds_walked
-            # )
         )
 
     def __repr__(self):
