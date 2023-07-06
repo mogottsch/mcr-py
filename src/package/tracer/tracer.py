@@ -4,9 +4,6 @@ from package import strtime
 class Trace:
     pass
 
-    def __repr__(self):
-        return self.__str__()
-
 
 class MovingTrace(Trace):
     def __init__(self, start_stop_id: str, end_stop_id: str):
@@ -22,9 +19,6 @@ class TracerMap:
         return "\n".join(
             [f"{stop_id}: {tracers}" for stop_id, tracers in self.tracers.items()]
         )
-
-    def __repr__(self):
-        return self.__str__()
 
     def __getitem__(self, stop_id: str):
         return self.tracers[stop_id]

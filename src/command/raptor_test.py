@@ -1,4 +1,4 @@
-from matplotlib import shutil
+import shutil
 from pandas.compat import os
 
 from command.raptor import raptor

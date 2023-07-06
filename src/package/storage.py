@@ -1,6 +1,6 @@
 from typing_extensions import Any
 import requests
-from matplotlib import tempfile
+import tempfile
 import pandas as pd
 import geopandas as gpd
 import os

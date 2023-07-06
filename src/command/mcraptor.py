@@ -4,10 +4,11 @@ from geopandas import pd
 
 from pyrosm.data import os
 import typer
+from rich.pretty import pprint
 
 from package import storage
 from package import key
-from package.raptor import Raptor
+from package.mcraptor import McRaptor
 from package.structs import build
 from package.key import BUILD_STRUCTURES_COMMAND_NAME, FOOTPATHS_COMMAND_NAME
 from package.logger import Timed
@@ -23,7 +24,7 @@ by the {BUILD_STRUCTURES_COMMAND_NAME} command.
 """
 
 
-def raptor(
+def mcraptor(
     footpaths: Annotated[str, typer.Option(help=FOOTPATHS_HELP)],
     structs: Annotated[str, typer.Option(help=STRUCTS_HELP)],
     start_stop_id: Annotated[str, typer.Option(help="Start stop ID")],
@@ -55,27 +56,21 @@ def raptor(
     build.validate_structs_dict(structs_dict)
 
     with Timed.info("Running RAPTOR"):
-        r = Raptor(
+        r = McRaptor(
             structs_dict,
             footpaths_dict,
             max_transfers,
             default_transfer_time,
         )
-        arrival_times, tracer_map = r.run(
+        labels = r.run(
             start_stop_id,
             end_stop_id,
             start_time,
         )
 
-    arrival_times_df = pd.DataFrame.from_dict(
-        arrival_times, orient="index", columns=["arrival_time"]
-    ).reset_index(names="stop_id")
-    storage.write_df(
-        arrival_times_df, os.path.join(output_dir, key.RAPTOR_ARRIVAL_TIMES_FILE_NAME)
-    )
     storage.write_any_dict(
-        {key.TRACER_MAP_KEY: tracer_map},
-        os.path.join(output_dir, key.RAPTOR_TRACE_FILE_NAME),
+        {key.MC_RAPTOR_LABELS_KEY: labels},
+        os.path.join(output_dir, key.MC_RAPTOR_LABELS_FILE_NAME),
     )
 
 
@@ -90,7 +85,9 @@ def validate_flags(
     output: str,
 ):
     if not os.path.exists(footpaths):
-        raise typer.BadParameter(f"Footpaths file {footpaths} does not exist.")
+        raise typer.BadParameter(
+            f"Footpaths file {os.path.abspath(footpaths)} does not exist."
+        )
 
     if not os.path.exists(structs):
         raise typer.BadParameter(f"Structs file {structs} does not exist.")

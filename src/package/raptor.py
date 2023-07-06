@@ -1,6 +1,6 @@
 from typing import Optional, Tuple
 
-from matplotlib import sys
+import sys
 
 from package import strtime
 from package.logger import llog
@@ -44,6 +44,21 @@ class Raptor:
         self.max_transfers = max_transfers
         self.default_transfer_time = default_transfer_time
 
+    def collect_Q(self, marked_stops: set[str]) -> dict[str, tuple[str, int]]:
+        Q: dict[str, tuple[str, int]] = {}
+        for stop_id in marked_stops:
+            for route_id in self.get_routes_serving_stop(stop_id):
+                idx = self.get_idx_of_stop_in_route(stop_id, route_id)
+                if route_id not in Q:
+                    Q[route_id] = (stop_id, idx)
+                    continue
+
+                # if our stop is closer to the start than the existing one, we replace it
+                _, existing_idx = Q[route_id]
+                if idx < existing_idx:
+                    Q[route_id] = (stop_id, idx)
+        return Q
+
     def run(self, start_stop_id: str, end_stop_id: Optional[str], start_time_str: str):
         start_time = strtime.str_time_to_seconds(start_time_str)
 
@@ -54,21 +69,9 @@ class Raptor:
         k = 0
         for k in range(1, self.max_transfers + 1):
             llog.debug(f"iteration {k}")
-            Q: dict[str, tuple[str, int]] = {}
             tau_i[k] = tau_i[k - 1].copy()
 
-            for stop_id in marked_stops:
-                for route_id in self.get_routes_serving_stop(stop_id):
-                    idx = self.get_idx_of_stop_in_route(stop_id, route_id)
-                    if route_id not in Q:
-                        Q[route_id] = (stop_id, idx)
-                        continue
-
-                    # if our stop is closer to the start than the existing one, we replace it
-                    _, existing_idx = Q[route_id]
-                    if idx < existing_idx:
-                        Q[route_id] = (stop_id, idx)
-
+            Q = self.collect_Q(marked_stops)
             llog.debug(f"Q: {Q}")
             marked_stops = set()
 

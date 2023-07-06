@@ -3,7 +3,7 @@ from typing_extensions import Any
 from datetime import datetime
 
 from geopandas import pd
-from matplotlib import os
+import os
 from osmnx.elevation import requests
 from rich.console import Console
 from rich.table import Table
