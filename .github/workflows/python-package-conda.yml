@@ -14,7 +14,6 @@ jobs:
       uses: mamba-org/setup-micromamba@v1
       with:
         environment-file: environment.yaml
-    - name: Test with pytest
-      run: |
-        conda install pytest
-        pytest
+    - name: Run tests
+      run: pytest
+      shell: micromamba-shell {0}
