@@ -3,7 +3,7 @@ from pyrosm.data import os
 import typer
 
 from package import storage
-from package.footpaths import generate as direct_generate
+from package.footpaths import GenerationMethod, generate as direct_generate
 from package.key import COMPLETE_GTFS_CLEAN_COMMAND_NAME, STOPS_KEY, FOOTPATHS_KEY
 from package.logger import Timed
 
@@ -55,6 +55,12 @@ def generate(
         ),
     ] = "",
     osm: Annotated[str, typer.Option(help=OSM_HELP)] = "",
+    method: Annotated[
+        str,
+        typer.Option(
+            help=f"Method to use for generating footpaths ({', '.join(GenerationMethod.all())})."
+        ),
+    ] = GenerationMethod.IGRAPH.name,
 ):
     validate_flags(
         city_id,
@@ -64,6 +70,8 @@ def generate(
         max_walking_duration,
         output,
     )
+
+    parsed_method = GenerationMethod.from_str(method)
     with Timed.info("Generating footpaths"):
         footpaths = direct_generate(
             city_id,
@@ -71,6 +79,7 @@ def generate(
             stops,
             avg_walking_speed,
             max_walking_duration,
+            parsed_method,
         )
 
     storage.write_any_dict({FOOTPATHS_KEY: footpaths}, output)

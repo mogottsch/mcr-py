@@ -1,20 +1,34 @@
 import shutil
 import os
-import multiprocessing
+from enum import Enum
 
 from pyrosm.data import get_data
 import pyrosm
 import geopandas as gpd
 import networkx as nx
-import igraph as ig
 import osmnx as ox
-from tqdm.contrib.concurrent import process_map
 
 from package import key, storage, osm
 from package.logger import Timed, llog
+from package.graph import igraph, fast_path
 
 
 OSM_DIR_PATH = storage.get_tmp_path(key.TMP_DIR_NAME, key.TMP_OSM_DIR_NAME)
+
+
+class GenerationMethod(Enum):
+    IGRAPH = "igraph"
+    FAST_PATH = "fast_path"
+
+    @classmethod
+    def from_str(cls, method: str) -> "GenerationMethod":
+        if method.upper() not in cls.all():
+            raise ValueError(f"Unknown generation method: {method}")
+        return cls[method.upper()]
+
+    @classmethod
+    def all(cls) -> list[str]:
+        return [method.name for method in cls]
 
 
 def generate(
@@ -23,6 +37,7 @@ def generate(
     stops_path: str,
     avg_walking_speed: float,
     max_walking_duration: int,
+    method: GenerationMethod = GenerationMethod.IGRAPH,
 ) -> dict[str, dict[str, int]]:
     osm_path = osm_path if osm_path else get_osm_path_from_city_id(city_id)
 
@@ -44,9 +59,6 @@ def generate(
     with Timed.info("Cropping OSM network to stops"):
         nodes, edges = osm.crop_to_stops(nodes, edges, stops_df)
 
-    with Timed.info("Creating igraph graph"):
-        i_graph = create_i_graph(osm_reader, nodes, edges)
-
     with Timed.info("Creating networkx graph"):
         nx_graph = create_nx_graph(osm_reader, nodes, edges)
 
@@ -58,13 +70,40 @@ def generate(
             stops_df, avg_walking_speed, max_walking_duration
         )
 
-    with Timed.info("Calculating distances between nearby stops"):
-        footpaths = create_footpaths(
-            i_graph,
-            stops_df,
-            nearby_stops_map,
-            avg_walking_speed,
-        )
+    stop_to_node_map: dict[str, int] = stops_df.set_index("stop_id")[
+        "nearest_node"
+    ].to_dict()
+    node_to_stop_map: dict[int, str] = stops_df.set_index("nearest_node")[
+        "stop_id"
+    ].to_dict()
+
+    # this map contains the one-to-many queries that have to be solved on the graph
+    source_targets_map: dict[int, list[int]] = {
+        stop_to_node_map[stop_id]: [
+            stop_to_node_map[stop_id] for stop_id in nearby_stops
+        ]
+        for stop_id, nearby_stops in nearby_stops_map.items()
+    }
+
+    with Timed.info(f"Calculating distances between nearby stops using {method.name}"):
+        if method == GenerationMethod.IGRAPH:
+            source_targets_distance_map = igraph.query_multiple_one_to_many(
+                source_targets_map, osm_reader, nodes, edges
+            )
+        elif method == GenerationMethod.FAST_PATH:
+            source_targets_distance_map = fast_path.query_multiple_one_to_many(
+                source_targets_map, edges
+            )
+
+    # pprint(node_to_stop_map)
+    footpaths: dict[str, dict[str, int]] = {}
+    for source_node, targets_distance_map in source_targets_distance_map.items():
+        stop_id = node_to_stop_map[source_node]
+        footpaths[stop_id] = {  # type: ignore
+            node_to_stop_map[target_node]: int(distance / avg_walking_speed)
+            for target_node, distance in targets_distance_map.items()
+        }
+
     return footpaths
 
 
@@ -82,12 +121,6 @@ def create_nx_graph(
     osm: pyrosm.OSM, nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame
 ) -> nx.Graph:
     return osm.to_graph(nodes, edges, graph_type="networkx")  # type: ignore
-
-
-def create_i_graph(
-    osm: pyrosm.OSM, nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame
-) -> ig.Graph:
-    return osm.to_graph(nodes, edges, graph_type="igraph")  # type: ignore
 
 
 def add_nearest_node_to_stops(
@@ -125,82 +158,3 @@ def create_nearby_stops_map(
         nearby_stops_map[row.stop_id] = nearby_stops
 
     return nearby_stops_map
-
-
-def create_footpaths(
-    i_graph_arg: ig.Graph,
-    stops_df: gpd.GeoDataFrame,
-    nearby_stops_map: dict[str, list[str]],
-    avg_walking_speed: float,
-) -> dict[str, dict[str, int]]:
-    global i_graph  # will be used during multiprocessing
-    i_graph = i_graph_arg
-
-    nearby_stops_with_distance_map = {}
-
-    global node_id_to_g_igraph_node_id_map  # will be used during multiprocessing
-    node_id_to_g_igraph_node_id_map = {
-        node.attributes()["id"]: node.attributes()["node_id"]
-        for node in list(i_graph_arg.vs)
-    }
-
-    global nearest_node_dict  # will be used during multiprocessing
-    nearest_node_dict = stops_df.set_index("stop_id")["nearest_node"].to_dict()
-
-    stop_list, nearby_stops_list = zip(*nearby_stops_map.items())
-
-    # # pick 10 for testing
-    # stop_list = stop_list[:10]
-    # nearby_stops_list = nearby_stops_list[:10]
-
-    res = process_map(
-        get_distances_nearby_stops,
-        stop_list,
-        nearby_stops_list,
-        chunksize=5,
-        max_workers=multiprocessing.cpu_count() - 2,  # leave some to prevent lags
-    )
-
-    for source_stop, nearby_stops_with_distance in zip(stop_list, res):
-        nearby_stops_with_distance_map[source_stop] = nearby_stops_with_distance
-
-    nearby_stop_with_walking_time_map: dict[str, dict[str, int]] = {}
-    for (
-        source_stop,
-        nearby_stops_with_distance,
-    ) in nearby_stops_with_distance_map.items():
-        nearby_stop_with_walking_time_map[source_stop] = {
-            target_stop: int(distance / avg_walking_speed)
-            for target_stop, distance in nearby_stops_with_distance.items()
-        }
-
-    # clean up globals
-    del i_graph
-    del node_id_to_g_igraph_node_id_map
-    del nearest_node_dict
-
-    return nearby_stop_with_walking_time_map
-
-
-def get_shortest_path_length_igraph(s_node_id, t_node_id):
-    paths = i_graph.get_shortest_paths(
-        node_id_to_g_igraph_node_id_map[s_node_id],
-        node_id_to_g_igraph_node_id_map[t_node_id],
-        weights="length",
-        output="epath",
-    )
-    path = paths[0]
-    return sum(i_graph.es[epath]["length"] for epath in path)
-
-
-def get_distances_nearby_stops(
-    source_stop,
-    nearby_stops,
-):
-    return {
-        target_stop: get_shortest_path_length_igraph(
-            nearest_node_dict[source_stop],
-            nearest_node_dict[target_stop],
-        )
-        for target_stop in nearby_stops
-    }

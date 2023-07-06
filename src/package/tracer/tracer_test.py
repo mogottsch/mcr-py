@@ -1,9 +1,6 @@
-from typing import List
-
 import pytest
 
 from package.tracer.tracer import TracerMap, TraceStart, TraceTrip, TraceFootpath
-from package import strtime
 
 
 @pytest.fixture

@@ -1,4 +1,3 @@
-import pytest
 import pandas as pd
 from package.gtfs.clean import (
     add_first_stop_info,

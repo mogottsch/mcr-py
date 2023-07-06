@@ -1,13 +1,12 @@
 from typing_extensions import Any
 import requests
-from matplotlib import tempfile
+import tempfile
 import pandas as pd
 import geopandas as gpd
 import os
 import pickle
 
 from package.gtfs import dtypes
-from package.logger import llog
 
 
 def write_dfs_dict(dfs_dict: dict[str, pd.DataFrame], output_path: str):

@@ -1,11 +1,10 @@
+from typing import Optional
+
 from package import strtime
 
 
 class Trace:
     pass
-
-    def __repr__(self):
-        return self.__str__()
 
 
 class MovingTrace(Trace):
@@ -17,14 +16,13 @@ class MovingTrace(Trace):
 class TracerMap:
     def __init__(self, stop_ids: set[str]):
         self.tracers: dict[str, list[Trace]] = {stop_id: [] for stop_id in stop_ids}
+        self.last_hop_on_stop_id: Optional[str] = None
+        self.last_hop_on_time: Optional[int] = None
 
     def __str__(self):
         return "\n".join(
             [f"{stop_id}: {tracers}" for stop_id, tracers in self.tracers.items()]
         )
-
-    def __repr__(self):
-        return self.__str__()
 
     def __getitem__(self, stop_id: str):
         return self.tracers[stop_id]
@@ -50,6 +48,17 @@ class TracerMap:
             self.tracers[tracer.start_stop_id] = [tracer]
         else:
             raise ValueError(f"Unknown tracer type: {type(tracer)}")
+
+    def update_last_hop(self, stop_id: str, time: int):
+        self.last_hop_on_stop_id = stop_id
+        self.last_hop_on_time = time
+
+    def clear_last_hop(self):
+        self.last_hop_on_stop_id = None
+        self.last_hop_on_time = None
+
+    def get_last_hop(self):
+        return self.last_hop_on_stop_id, self.last_hop_on_time
 
 
 class TraceStart(Trace):

@@ -1,9 +1,8 @@
-from matplotlib import shutil
+import shutil
 from pandas.compat import os
 
 from command.raptor import raptor
 from package import storage, strtime
-from package.key import TRACER_MAP_KEY
 from package.output import enrich_raptor_trace_results
 from package.tracer.tracer import (
     EnrichedTraceFootpath,

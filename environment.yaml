@@ -19,6 +19,8 @@ dependencies:
   - typer
   - shellingham
   - rich
+  - maturin
+  - polars
   # optional
   - folium
   # environment
