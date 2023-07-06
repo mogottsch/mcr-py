@@ -7,7 +7,6 @@ import pyrosm
 import geopandas as gpd
 import networkx as nx
 import osmnx as ox
-from rich.pretty import pprint
 
 from package import key, storage, osm
 from package.logger import Timed, llog

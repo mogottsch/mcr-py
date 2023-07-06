@@ -7,7 +7,7 @@ import typer
 
 from package import storage
 from package import key
-from package.raptor import Raptor
+from package.raptor.raptor import Raptor
 from package.structs import build
 from package.key import BUILD_STRUCTURES_COMMAND_NAME, FOOTPATHS_COMMAND_NAME
 from package.logger import Timed

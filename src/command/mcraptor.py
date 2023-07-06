@@ -1,14 +1,12 @@
 from typing import Optional
 from typing_extensions import Annotated
-from geopandas import pd
 
 from pyrosm.data import os
 import typer
-from rich.pretty import pprint
 
 from package import storage
 from package import key
-from package.mcraptor import McRaptor
+from package.raptor.mcraptor import McRaptor
 from package.structs import build
 from package.key import BUILD_STRUCTURES_COMMAND_NAME, FOOTPATHS_COMMAND_NAME
 from package.logger import Timed

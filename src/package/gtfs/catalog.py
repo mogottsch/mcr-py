@@ -1,6 +1,5 @@
 from re import IGNORECASE
 from typing_extensions import Any
-from datetime import datetime
 
 from geopandas import pd
 import os

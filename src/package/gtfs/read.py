@@ -1,4 +1,3 @@
-from rich import print
 from rich.table import Table
 from rich.console import Console
 from pyrosm.data import os
