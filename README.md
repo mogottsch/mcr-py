@@ -107,3 +107,15 @@ python src/main.py raptor \
     --start-time 15:00:00 \
     --output ./data/raptor_results.csv
 ```
+
+### small area in cologne
+
+```
+python src/main.py gtfs crop ./data/vrs.zip ./data/cologne_gtfs.zip \
+    --lat-min=50.936779 \
+    --lat-max=50.981779 \
+    --lon-min=6.908867 \
+    --lon-max=6.978867 \
+    --time-start 23.06.2023-00:00:00 \
+    --time-end 24.06.2023-00:00:00
+```

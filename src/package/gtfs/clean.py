@@ -24,6 +24,9 @@ def clean(gtfs_zip_path: str) -> dict[str, pd.DataFrame]:
         dfs[STOPS_KEY],
     )
 
+    with Timed.info("Removing incompatible trips"):
+        trips_df, stop_times_df = remove_circular_trips(trips_df, stop_times_df)
+
     with Timed.info("Splitting routes"):
         trips_df = split_routes(trips_df, stop_times_df)
     with Timed.info("Preparing dataframes"):
@@ -37,6 +40,28 @@ def clean(gtfs_zip_path: str) -> dict[str, pd.DataFrame]:
         STOP_TIMES_KEY: stop_times_df,
         STOPS_KEY: stops_df,
     }
+
+
+def remove_circular_trips(
+    trips_df: pd.DataFrame,
+    stop_times_df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Removes trips that have circular paths.
+
+    Circular paths are not supported by our algorithms.
+    """
+    circular_trips = stop_times_df.groupby("trip_id").apply(is_circular_trip)
+    circular_trips = circular_trips[circular_trips].index
+
+    trips_df = trips_df[~trips_df["trip_id"].isin(circular_trips)].copy()
+    stop_times_df = stop_times_df[~stop_times_df["trip_id"].isin(circular_trips)].copy()
+
+    return trips_df, stop_times_df
+
+
+def is_circular_trip(stop_times_df: pd.DataFrame) -> bool:
+    return stop_times_df["stop_id"].nunique() != len(stop_times_df)
 
 
 def split_routes(trips_df: pd.DataFrame, stop_times_df: pd.DataFrame) -> pd.DataFrame:

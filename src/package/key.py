@@ -1,3 +1,6 @@
+from typing import TypeVar
+
+
 TRIPS_KEY = "trips"
 STOP_TIMES_KEY = "stop_times"
 STOPS_KEY = "stops"
@@ -43,7 +46,6 @@ FOOTPATHS_KEY = "footpaths"
 BUILD_STRUCTURES_COMMAND_NAME = "build-structures"
 FOOTPATHS_COMMAND_NAME = "generate-footpaths"
 RAPTOR_COMMAND_NAME = "raptor"
-MC_RAPTOR_COMMAND_NAME = "mcraptor"
 
 GTFS_UPPER_COMMAND_NAME = "gtfs"
 GTFS_LIST_COMMAND_NAME = "list"
@@ -70,7 +72,6 @@ TMP_GTFS_CATALOG_FILE_NAME = "catalog.csv"
 ## output
 RAPTOR_ARRIVAL_TIMES_FILE_NAME = "arrival_times.csv"
 RAPTOR_TRACE_FILE_NAME = "tracer_map.pkl"
-MC_RAPTOR_LABELS_FILE_NAME = "mc_raptor_labels.pkl"
 
 
 # urls
@@ -82,4 +83,6 @@ DATE_TIME_FORMAT_HUMAN_READABLE = "DD.MM.YYYY-HH:MM:SS"
 
 # pkl data keys
 TRACER_MAP_KEY = "tracer_map"
-MC_RAPTOR_LABELS_KEY = "tracer_map"
+
+S = TypeVar("S")  # additional information about stop
+T = TypeVar("T")  # additional information about trip
