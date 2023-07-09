@@ -1,44 +1,44 @@
-from typing import Callable, Generic, TypeVar
+from copy import deepcopy
+from typing import Generic, Optional, TypeVar
 from typing_extensions import Self
 
-from package import strtime
 from package.key import S, T
 from package.raptor.data import ExpandedDataQuerier
+from package.tracer.tracer import TraceFootpath, TraceStart, TraceTrip
 
 
-class LabelInterface:
-    def __init__(self, time: int, stop: str):
+class BaseLabel:
+    def __init__(self, time: int):
         self.arrival_time = time
-        self.stop = stop
 
     def __repr__(self):
-        return f"Label({self.arrival_time}, {self.stop})"
+        return f"Label({self.arrival_time})"
 
     def strictly_dominates(self, other: Self) -> bool:
         return True
 
     def update_along_trip(self, arrival_time: int, stop_id: str, trip_id: str):
-        pass
+        self.arrival_time = arrival_time
 
     def update_along_footpath(self, walking_time: int, stop_id: str):
-        pass
+        self.arrival_time = self.arrival_time + walking_time
 
     def update_before_route_bag_merge(self, departure_time: int, stop_id: str):
-        pass
+        self.arrival_time = departure_time
 
     def to_human_readable(self):
         pass
 
     def copy(self: Self) -> Self:
-        return LabelInterface(self.arrival_time, self.stop)
+        return deepcopy(self)
 
 
-L = TypeVar("L", bound=LabelInterface)  # custom label
+L = TypeVar("L", bound=BaseLabel)  # custom label
 
 
 class Bag:
     def __init__(self):
-        self._bag: set[LabelInterface] = set()
+        self._bag: set[BaseLabel] = set()
 
     def __iter__(self):
         return iter(self._bag)
@@ -49,20 +49,20 @@ class Bag:
     def __repr__(self):
         return repr(self._bag)
 
-    def add_if_necessary(self, label: LabelInterface) -> bool:
+    def add_if_necessary(self, label: BaseLabel) -> bool:
         if not self.content_dominates(label):
             self.remove_dominated_by(label)
             self.add(label)
             return True
         return False
 
-    def add(self, label: LabelInterface):
+    def add(self, label: BaseLabel):
         self._bag.add(label.copy())
 
-    def content_dominates(self, label: LabelInterface):
+    def content_dominates(self, label: BaseLabel):
         return any(other.strictly_dominates(label) for other in self._bag)
 
-    def remove_dominated_by(self, label: LabelInterface):
+    def remove_dominated_by(self, label: BaseLabel):
         self._bag = {
             other for other in self._bag if not label.strictly_dominates(other)
         }
@@ -151,12 +151,50 @@ class RouteBag(Generic[L, S, T]):
             bag.add(label)
         return bag
 
-    def copy(self):
-        new_bag = RouteBag(
-            self._dq,
-            self._update_label_along_trip,
-            self._update_label_along_footpath,
-            self._update_label_along_waiting,
-        )
-        new_bag._bag = set((label.copy(), trip) for label, trip in self._bag)
-        return new_bag
+
+class TraceLabel(BaseLabel):
+    def __init__(self, time: int, stop: Optional[str] = None):
+        super().__init__(time)
+        self.stops = []
+        self.trips = []
+        self.traces = []
+        if stop is not None and time is not None:
+            self.stops.append(stop)
+            self.traces.append(TraceStart(stop, time))
+
+        self.last_update = "start"
+
+    def update_along_trip(self, arrival_time: int, stop_id: str, trip_id: str):
+        old_arrival_time = self.arrival_time
+        super().update_along_trip(arrival_time, stop_id, trip_id)
+        if self.last_update == "trip":
+            prev_trace = self.traces.pop()
+            assert trip_id == prev_trace.trip_id
+            self.traces.append(
+                TraceTrip(
+                    prev_trace.start_stop_id,
+                    prev_trace.departure_time,
+                    stop_id,
+                    arrival_time,
+                    trip_id,
+                )
+            )
+        else:
+            self.traces.append(
+                TraceTrip(
+                    self.stops[-1], old_arrival_time, stop_id, arrival_time, trip_id
+                )
+            )
+
+        self.last_update = "trip"
+        self.stops.append(stop_id)
+        self.trips.append(trip_id)
+
+    def update_along_footpath(self, walking_time: int, stop_id: str):
+        super().update_along_footpath(walking_time, stop_id)
+        self.last_update = "footpath"
+        self.traces.append(TraceFootpath(self.stops[-1], stop_id, walking_time))
+        self.stops.append(stop_id)
+
+    def update_before_route_bag_merge(self, departure_time: int, stop_id: str):
+        super().update_before_route_bag_merge(departure_time, stop_id)

@@ -6,9 +6,9 @@ from package import strtime
 from package.raptor import bag
 
 
-class ActivityDurationLabel(bag.LabelInterface):
+class ActivityDurationLabel(bag.TraceLabel):
     def __init__(self, time: int, stop: Optional[str] = None):
-        self.arrival_time = time
+        super().__init__(time, stop)
         self.travel_time = 0
         self.walking_time = 0
         self.waiting_time = 0
@@ -33,9 +33,9 @@ class ActivityDurationLabel(bag.LabelInterface):
         )
 
     def update_along_trip(self, arrival_time: int, stop_id: str, trip_id: str):
+        super().update_along_trip(arrival_time, stop_id, trip_id)
         interval = arrival_time - self.arrival_time
         assert interval >= 0
-        self.arrival_time = arrival_time
         self.travel_time += interval
 
         if self.last_update == "trip":
@@ -52,9 +52,7 @@ class ActivityDurationLabel(bag.LabelInterface):
             )
         else:
             self.traces.append(
-                TraceTrip(
-                    self.stops[-1], self.arrival_time, stop_id, arrival_time, trip_id
-                )
+                TraceTrip(self.stops[-1], arrival_time, stop_id, arrival_time, trip_id)
             )
 
         self.last_update = "trip"
@@ -62,16 +60,16 @@ class ActivityDurationLabel(bag.LabelInterface):
         self.trips.append(trip_id)
 
     def update_along_footpath(self, walking_time: int, stop_id: str):
-        self.arrival_time = self.arrival_time + walking_time
+        super().update_along_footpath(walking_time, stop_id)
         self.walking_time += walking_time
         self.last_update = "footpath"
         self.traces.append(TraceFootpath(self.stops[-1], stop_id, walking_time))
         self.stops.append(stop_id)
 
     def update_before_route_bag_merge(self, departure_time: int, stop_id: str):
+        super().update_before_route_bag_merge(departure_time, stop_id)
         interval = departure_time - self.arrival_time
         assert interval >= 0
-        self.arrival_time = departure_time
         self.waiting_time += interval
         self.last_update = "waiting"
         self.stops.append(stop_id)
@@ -86,17 +84,3 @@ class ActivityDurationLabel(bag.LabelInterface):
             "trips": self.trips,
             "traces": self.traces,
         }
-
-    def copy(self: Self) -> Self:
-        label = type(self)(self.arrival_time)
-
-        label.stops = self.stops.copy()
-        label.trips = self.trips.copy()
-        label.last_update = self.last_update
-
-        label.travel_time = self.travel_time
-        label.walking_time = self.walking_time
-        label.waiting_time = self.waiting_time
-        label.traces = self.traces.copy()
-
-        return label
