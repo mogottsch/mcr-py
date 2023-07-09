@@ -1,4 +1,4 @@
-from typing import Callable, Generic, Optional, TypeVar
+from typing import Generic, Optional
 from typing_extensions import Any, Self
 
 from package import strtime
@@ -22,14 +22,6 @@ class McRaptor(Generic[L, S, T]):
         additional_stop_information: dict[str, S],
         additional_trip_information: dict[str, T],
         label_class: type[L],
-        # # params: start_stop, start_time
-        # create_start_label: Callable[[S, int], L],
-        # # params: label, trip, start_stop, end_stop
-        # update_label_along_trip: Callable[[L, T, S, S], L],
-        # # params: label, start_stop, end_stop, walking_time
-        # update_label_along_footpath: Callable[[L, S, S, int], L],
-        # # params: label, stop, waiting_time
-        # update_label_along_waiting: Callable[[L, S, int], L],
     ):
         self.dq = ExpandedDataQuerier(
             structs_dict,
@@ -38,16 +30,10 @@ class McRaptor(Generic[L, S, T]):
             additional_trip_information,
         )
 
-        # self.footpaths = footpaths
         self.max_transfers = max_transfers
         self.default_transfer_time = default_transfer_time
 
         self.label_class = label_class
-
-        # self.create_start_label = create_start_label
-        # self.update_label_along_trip = update_label_along_trip
-        # self.update_label_along_footpath = update_label_along_footpath
-        # self.update_label_along_waiting = update_label_along_waiting
 
     # TODO: prune by end_stop_id
     def run(
@@ -95,8 +81,6 @@ class McRaptor(Generic[L, S, T]):
         for stop_id in self.dq.stop_id_set:
             tau_i[0][stop_id] = Bag()
             tau_best[stop_id] = Bag()
-
-        # start_stop = self.dq.get_stop(start_stop_id)
 
         start_bag = Bag()
         start_bag.add_if_necessary(self.label_class(start_time, start_stop_id))
@@ -170,13 +154,6 @@ class McRaptor(Generic[L, S, T]):
             marked_stops.add(stop_id)
 
         # third step - merge stop_bag into route_bag
-        # transfer_time_stop_bag = (
-        #     stop_bag.create_bag_with_timeoffset(  # TODO: do we need this?
-        #         self.default_transfer_time
-        #         if k > 0
-        #         else 0  # there is no transfer time for the first stop
-        #     )
-        # )
         self.merge_bag_into_route_bag(
             route_bag,
             stop_bag,
@@ -198,8 +175,8 @@ class McRaptor(Generic[L, S, T]):
                 route_id,
                 stop_id,
                 label.arrival_time,
-                # self.default_transfer_time,  # TODO: is this correct?
-                0,
+                self.default_transfer_time,  # TODO: is this correct?
+                # 0,
             )
             if res is None:
                 continue

@@ -1,11 +1,7 @@
 import pandas as pd
 import geopandas as gpd
 
-from package.key import (
-    STOP_TIMES_KEY,
-    TRIPS_KEY,
-    STOPS_KEY,
-)
+from package import key
 from package.logger import Timed
 from package.gtfs import archive
 
@@ -18,27 +14,28 @@ def clean(gtfs_zip_path: str) -> dict[str, pd.DataFrame]:
     """
     with Timed.info("Reading GTFS data"):
         dfs = archive.read_dfs(gtfs_zip_path)
-    trips_df, stop_times_df, stops_df = (
-        dfs[TRIPS_KEY],
-        dfs[STOP_TIMES_KEY],
-        dfs[STOPS_KEY],
+    trips_df, stop_times_df, stops_df, routes_df = (
+        dfs[key.TRIPS_KEY],
+        dfs[key.STOP_TIMES_KEY],
+        dfs[key.STOPS_KEY],
+        dfs[key.ROUTES_KEY],
     )
 
     with Timed.info("Removing incompatible trips"):
         trips_df, stop_times_df = remove_circular_trips(trips_df, stop_times_df)
 
     with Timed.info("Splitting routes"):
-        trips_df = split_routes(trips_df, stop_times_df)
+        trips_df, routes_df = split_routes(trips_df, stop_times_df, routes_df)
     with Timed.info("Preparing dataframes"):
         trips_df = add_first_stop_info(trips_df, stop_times_df)
         stops_df = remove_unused_stops(stop_times_df, stops_df)
         stops_df = add_geometry(stops_df)
 
-    # make dir with parents
     return {
-        TRIPS_KEY: trips_df,
-        STOP_TIMES_KEY: stop_times_df,
-        STOPS_KEY: stops_df,
+        key.TRIPS_KEY: trips_df,
+        key.STOP_TIMES_KEY: stop_times_df,
+        key.STOPS_KEY: stops_df,
+        key.ROUTES_KEY: routes_df,
     }
 
 
@@ -64,7 +61,9 @@ def is_circular_trip(stop_times_df: pd.DataFrame) -> bool:
     return stop_times_df["stop_id"].nunique() != len(stop_times_df)
 
 
-def split_routes(trips_df: pd.DataFrame, stop_times_df: pd.DataFrame) -> pd.DataFrame:
+def split_routes(
+    trips_df: pd.DataFrame, stop_times_df: pd.DataFrame, routes_df: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Splits routes into one route per actual path.
 
@@ -80,8 +79,9 @@ def split_routes(trips_df: pd.DataFrame, stop_times_df: pd.DataFrame) -> pd.Data
     paths_df = create_paths_df(trips_df, stop_times_df)
     paths_df = add_unique_route_ids(paths_df)
     trips_df = update_route_ids(trips_df, paths_df)
+    routes_df = insert_new_routes(routes_df, trips_df)
 
-    return trips_df
+    return trips_df, routes_df
 
 
 def split_routes_by_direction(trips_df: pd.DataFrame):
@@ -150,6 +150,28 @@ def update_route_ids(trips_df: pd.DataFrame, paths_df: pd.DataFrame) -> pd.DataF
     trips_df["route_id"] = trips_df["new_route_id"]
     trips_df = trips_df.drop(columns=["new_route_id"])
     return trips_df
+
+
+def insert_new_routes(routes_df: pd.DataFrame, trips_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Reads the old and new route names of each trip and inserts the new routes into
+    the routes_df by copying the old routes.
+    """
+    new_rows = []
+
+    route_id_map = trips_df.set_index("route_id")["old_route_id"].to_dict()
+    # Iterate over each row in the trips_df
+    for route_id, old_route_id in route_id_map.items():
+        # Find the corresponding row in the routes_df based on old_route_id
+        old_route_row = routes_df[routes_df["route_id"] == old_route_id].iloc[0]
+
+        # Create a new row by copying the old route row and update the route_id
+        new_route_row = old_route_row.copy()
+        new_route_row["route_id"] = route_id
+
+        new_rows.append(new_route_row)
+
+    return pd.DataFrame(new_rows)
 
 
 def add_first_stop_info(
