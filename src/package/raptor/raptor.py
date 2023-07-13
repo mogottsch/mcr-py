@@ -141,9 +141,7 @@ class Raptor:
             )
             marked_stops.add(stop_id)
 
-        ready_to_depart = (
-            tau_i[k - 1][stop_id] + self.default_transfer_time
-        )  # TODO: this is wrong: used twice!
+        ready_to_depart = tau_i[k - 1][stop_id] + self.default_transfer_time
         if ready_to_depart < self.dq.get_departure_time(trip_id, stop_id):
             new_trip_id = self.find_earlier_trip(
                 route_id, stop_id, ready_to_depart, tracers_map
