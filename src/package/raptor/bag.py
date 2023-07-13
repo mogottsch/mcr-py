@@ -8,7 +8,7 @@ from package.tracer.tracer import TraceFootpath, TraceStart, TraceTrip
 
 
 class BaseLabel:
-    def __init__(self, time: int):
+    def __init__(self, time: int, stop_id: Optional[str] = None):
         self.arrival_time = time
 
     def __repr__(self):
@@ -154,7 +154,7 @@ class RouteBag(Generic[L, S, T]):
 
 class TraceLabel(BaseLabel):
     def __init__(self, time: int, stop: Optional[str] = None):
-        super().__init__(time)
+        super().__init__(time, stop)
         self.stops = []
         self.trips = []
         self.traces = []
@@ -198,3 +198,5 @@ class TraceLabel(BaseLabel):
 
     def update_before_route_bag_merge(self, departure_time: int, stop_id: str):
         super().update_before_route_bag_merge(departure_time, stop_id)
+        self.last_update = "waiting"
+        self.stops.append(stop_id)

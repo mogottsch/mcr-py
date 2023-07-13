@@ -57,12 +57,12 @@ class DataQuerier:
         return departure_time
 
     def earliest_trip(
-        self, route_id: str, stop_id: str, arrival_time: int, change_time: int
+        self, route_id: str, stop_id: str, arrival_time: int
     ) -> Optional[tuple[str, int]]:
         trip_ids = self.trip_ids_by_route[route_id]  # sorted by departure time
         for trip_id in trip_ids:
             departure_time = self.get_departure_time(trip_id, stop_id)
-            if departure_time >= arrival_time + change_time:
+            if departure_time >= arrival_time:
                 return trip_id, departure_time
 
     def iterate_footpaths_from_stop(self, stop_id: str):

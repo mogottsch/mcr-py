@@ -130,6 +130,9 @@ class Raptor:
     ) -> tuple[Optional[str], TausPerIteration, TausBest, TracerMap]:
         tau_best_end_stop_id = tau_best[end_stop_id] if end_stop_id else sys.maxsize
 
+        if route_id == "100013_1_A":
+            print(route_id)
+
         if trip_id is not None and self.dq.get_arrival_time(trip_id, stop_id) < min(
             tau_best[stop_id], tau_best_end_stop_id
         ):
@@ -138,7 +141,9 @@ class Raptor:
             )
             marked_stops.add(stop_id)
 
-        ready_to_depart = tau_i[k - 1][stop_id] + self.default_transfer_time
+        ready_to_depart = (
+            tau_i[k - 1][stop_id] + self.default_transfer_time
+        )  # TODO: this is wrong: used twice!
         if ready_to_depart < self.dq.get_departure_time(trip_id, stop_id):
             new_trip_id = self.find_earlier_trip(
                 route_id, stop_id, ready_to_depart, tracers_map
@@ -186,7 +191,6 @@ class Raptor:
             route_id,
             stop_id,
             ready_to_depart,
-            self.default_transfer_time,
         )
         if result is None:
             # we could not find a new trip, so we return as is

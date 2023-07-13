@@ -38,7 +38,7 @@ class McRaptor(Generic[L, S, T]):
     # TODO: prune by end_stop_id
     def run(
         self, start_stop_id: str, end_stop_id: Optional[str], start_time_str: str
-    ) -> dict[str, set[tuple[str, str]]]:
+    ) -> dict[str, Any]:
         start_time = strtime.str_time_to_seconds(start_time_str)
 
         b_i, b_best, marked_stops, tracers_map = self.init_vars(
@@ -174,9 +174,7 @@ class McRaptor(Generic[L, S, T]):
             res = self.dq.earliest_trip(
                 route_id,
                 stop_id,
-                label.arrival_time,
-                self.default_transfer_time,  # TODO: is this correct?
-                # 0,
+                label.arrival_time + self.default_transfer_time,
             )
             if res is None:
                 continue
