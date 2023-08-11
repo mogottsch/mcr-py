@@ -74,7 +74,7 @@ def get_conversion_maps(
 def create_i_graph(
     osm: pyrosm.OSM, nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame
 ) -> ig.Graph:
-    return osm.to_graph(nodes, edges, graph_type="igraph")  # type: ignore
+    return osm.to_graph(nodes, edges, graph_type="igraph", network_type="walking") # type: ignore
 
 
 def get_shortest_path(source_node: int, target_node: int) -> int:

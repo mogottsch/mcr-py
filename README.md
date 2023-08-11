@@ -81,7 +81,6 @@ python src/main.py raptor \
 
 ### same with cologne
 
-
 ```
 python src/main.py gtfs list --country-code de
 python src/main.py gtfs download 777 ./data/vrs.zip
@@ -105,17 +104,19 @@ python src/main.py raptor \
     --start-stop-id 818 \
     --end-stop-id 197 \
     --start-time 15:00:00 \
-    --output ./data/raptor_results.csv
+    --output-dir ./data/raptor_results.csv
 ```
 
 ### small area in cologne
 
 ```
 python src/main.py gtfs crop ./data/vrs.zip ./data/cologne_gtfs.zip \
-    --lat-min=50.936779 \
     --lat-max=50.981779 \
-    --lon-min=6.908867 \
-    --lon-max=6.978867 \
+    --lat-min=50.973779 \
+    --lon-max=6.973867 \
+    --lon-min=6.963867 \
     --time-start 23.06.2023-00:00:00 \
     --time-end 24.06.2023-00:00:00
 ```
+
+### even smaller area in cologne

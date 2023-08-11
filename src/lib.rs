@@ -1,11 +1,14 @@
 use bimap::BiMap;
 use fast_paths::{FastGraph, InputGraph};
+use mlc_adapter::run_mlc;
 use polars::prelude::*;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 use pyo3_polars::PyDataFrame;
 use rayon::prelude::*;
 use std::collections::HashMap;
+
+mod mlc_adapter;
 
 fn doube_series(s: &Series) -> Series {
     s * 2
@@ -168,5 +171,6 @@ static WEIGHT_PRECISION_MULTIPLIER: f64 = 100.0;
 fn mcr_py(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(double, m)?)?;
     m.add_function(wrap_pyfunction!(query_multiple_one_to_many, m)?)?;
+    m.add_function(wrap_pyfunction!(run_mlc, m)?)?;
     Ok(())
 }
