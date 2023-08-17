@@ -4,7 +4,7 @@ from typing_extensions import Self
 import sys
 
 from package import strtime
-from package.logger import llog
+from package.logger import rlog
 from package.raptor.data import DataQuerier
 from package.tracer.tracer import (
     TraceStart,
@@ -41,7 +41,7 @@ class Raptor:
 
         k = 0
         for k in range(1, self.max_transfers + 1):
-            llog.debug(f"iteration {k}")
+            rlog.debug(f"iteration {k}")
             tau_i[k] = tau_i[k - 1].copy()
 
             Q = self.collect_Q(marked_stops)
@@ -61,13 +61,13 @@ class Raptor:
 
             marked_stops.update(additional_marked_stops)
 
-            llog.debug(f"marked_stops: {marked_stops}")
-            llog.debug(f"tau_i: {tau_i[k]}")
+            rlog.debug(f"marked_stops: {marked_stops}")
+            rlog.debug(f"tau_i: {tau_i[k]}")
 
             if len(marked_stops) == 0:
                 break
 
-        llog.info(f"RAPTOR finished after {k} iterations")
+        rlog.info(f"RAPTOR finished after {k} iterations")
         return seconds_dict_to_times_dict(tau_best), tracers_map
 
     def collect_Q(self, marked_stops: set[str]) -> dict[str, tuple[str, int]]:

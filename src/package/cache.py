@@ -35,12 +35,14 @@ def cache_gdf(df: pd.DataFrame, hash: int, identifier: str):
     if not os.path.exists(tempdir):
         os.mkdir(tempdir)
     path = os.path.join(tempdir, f"{identifier}_{hash}")
-    df.to_file(path)
+    df.to_feather(path)
+    # df.to_file(path)
 
 
 def read_gdf(hash: int, identifier: str) -> gpd.GeoDataFrame:
     path = os.path.join(tempdir, f"{identifier}_{hash}")
-    return gpd.read_file(path)
+    # return gpd.read_file(path)
+    return gpd.read_feather(path)
 
 
 def cache_entry_exists(hash: int, identifier: str) -> bool:

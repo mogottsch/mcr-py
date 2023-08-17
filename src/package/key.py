@@ -46,6 +46,7 @@ FOOTPATHS_KEY = "footpaths"
 BUILD_STRUCTURES_COMMAND_NAME = "build-structures"
 FOOTPATHS_COMMAND_NAME = "generate-footpaths"
 RAPTOR_COMMAND_NAME = "raptor"
+MCR_COMMAND_NAME = "mcr"
 
 GTFS_UPPER_COMMAND_NAME = "gtfs"
 GTFS_LIST_COMMAND_NAME = "list"

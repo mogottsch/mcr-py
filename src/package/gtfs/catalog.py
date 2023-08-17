@@ -10,7 +10,7 @@ from rich import print
 
 from package import key, storage
 from package.logger import Timed
-from package.logger import llog
+from package.logger import rlog
 
 CATALOG_PATH = storage.get_tmp_path(
     key.TMP_GTFS_DIR_NAME, key.TMP_GTFS_CATALOG_FILE_NAME
@@ -141,14 +141,14 @@ def download(id: int, output: str):
     catalog = catalog[catalog.index == id]
 
     if len(catalog) == 0:
-        llog.error(f"GTFS feed with ID {id} not found.")
+        rlog.error(f"GTFS feed with ID {id} not found.")
         return
 
     row = catalog.iloc[0]
     url = row[COL_DOWNLOAD_URL]
 
     if not url:
-        llog.error(f"GTFS feed with ID {id} has no download URL.")
+        rlog.error(f"GTFS feed with ID {id} has no download URL.")
         return
 
     with Timed.info(f"Downloading GTFS feed with ID {id}"):

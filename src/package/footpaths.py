@@ -7,7 +7,7 @@ import networkx as nx
 import osmnx as ox
 
 from package.osm import osm
-from package.logger import Timed, llog
+from package.logger import Timed, rlog
 from package.graph import igraph, fast_path
 from package import storage
 
@@ -41,10 +41,10 @@ def generate(
         stops_df = storage.read_gdf(stops_path)
 
     if not os.path.exists(osm_path) and city_id:
-        llog.info("Downloading OSM data")
+        rlog.info("Downloading OSM data")
         osm.download_city(city_id, osm_path)
     else:
-        llog.info("Using existing OSM data")
+        rlog.info("Using existing OSM data")
 
     osm_reader = osm.new_osm_reader(osm_path)
 

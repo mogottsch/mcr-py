@@ -5,7 +5,7 @@ import pandas as pd
 
 from package import key, storage
 from package.gtfs import archive
-from package.logger import Timed, llog
+from package.logger import Timed, rlog
 
 
 def print_stops(path: str):
@@ -16,14 +16,14 @@ def print_stops(path: str):
 
 def get_stops_df(path: str):
     if path.endswith(".zip"):
-        llog.debug("Reading stops from zip file")
+        rlog.debug("Reading stops from zip file")
         dfs = archive.read_dfs(path)
         return dfs[key.STOPS_KEY]
 
     if not os.path.isdir(path):
         raise ValueError("Path is neither a zip file nor a directory")
 
-    llog.debug("Reading stops from directory")
+    rlog.debug("Reading stops from directory")
 
     return storage.read_df(
         os.path.join(path, storage.get_df_filename_for_name(key.STOPS_KEY))

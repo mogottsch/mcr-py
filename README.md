@@ -107,16 +107,25 @@ python src/main.py raptor \
     --output-dir ./data/raptor_results.csv
 ```
 
-### small area in cologne
+### smaller area in cologne
 
+```
+python src/main.py gtfs crop ./data/vrs.zip ./data/cologne_gtfs.zip \
+    --lat-max=50.981779 \
+    --lat-min=50.936779 \
+    --lon-max=6.978867 \
+    --lon-min=6.908867000000001 \
+    --time-start 23.06.2023-00:00:00 \
+    --time-end 24.06.2023-00:00:00
+```
+
+### smallest area in cologne
 ```
 python src/main.py gtfs crop ./data/vrs.zip ./data/cologne_gtfs.zip \
     --lat-max=50.981779 \
     --lat-min=50.973779 \
     --lon-max=6.973867 \
-    --lon-min=6.963867 \
+    --lon-min=6.9638670000000005 \
     --time-start 23.06.2023-00:00:00 \
     --time-end 24.06.2023-00:00:00
 ```
-
-### even smaller area in cologne

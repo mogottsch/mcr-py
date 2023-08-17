@@ -3,7 +3,7 @@ from typing_extensions import Any, Self
 
 from package import strtime
 from package.key import S, T
-from package.logger import llog
+from package.logger import rlog
 from package.raptor.bag import L, Bag, RouteBag
 from package.raptor.data import ExpandedDataQuerier
 from package.tracer.tracer import (
@@ -47,7 +47,7 @@ class McRaptor(Generic[L, S, T]):
 
         k = 0
         for k in range(1, self.max_transfers + 1):
-            llog.debug(f"iteration {k}")
+            rlog.debug(f"iteration {k}")
             b_i[k] = b_i[k - 1].copy()
 
             Q = self.collect_Q(marked_stops)
@@ -60,12 +60,12 @@ class McRaptor(Generic[L, S, T]):
             # copy current bags into b_best
             b_best = {stop_id: bag.copy() for stop_id, bag in b_i[k].items()}
 
-            llog.debug(f"marked_stops: {len(marked_stops)}")
+            rlog.debug(f"marked_stops: {len(marked_stops)}")
 
             if len(marked_stops) == 0:
                 break
 
-        llog.info(f"RAPTOR finished after {k} iterations")
+        rlog.info(f"RAPTOR finished after {k} iterations")
         return bags_to_human_readable(b_best)
 
     def init_vars(

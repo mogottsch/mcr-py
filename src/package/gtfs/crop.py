@@ -5,7 +5,7 @@ from geopandas import pd
 from package import key
 
 from package.gtfs import archive
-from package.logger import Timed, llog
+from package.logger import Timed, rlog
 
 
 def crop(
@@ -34,7 +34,7 @@ def crop(
         len(stop_times_df),
         len(stops_df),
     )
-    llog.debug(
+    rlog.debug(
         f"""
     # of trips: {n_trips}
     # of stop times: {n_stop_times}
@@ -48,7 +48,7 @@ def crop(
     trips_df, stop_times_df = reconcile_trips_and_stop_times_with_stops(
         trips_df, stop_times_df, stops_df
     )
-    llog.debug(
+    rlog.debug(
         f"""
         Bounding Box stops remaining: {len(stops_df)}/{n_stops} ({len(stops_df) / n_stops:.2%})
         Bounding Box trips remaining: {len(trips_df)}/{n_trips} ({len(trips_df) / n_trips:.2%})
@@ -65,7 +65,7 @@ def crop(
     stop_times_df = reconcile_stop_times_with_trips(stop_times_df, trips_df)
     stops_df = reconcile_stops_with_stop_times(stops_df, stop_times_df)
 
-    llog.debug(
+    rlog.debug(
         f"""
         Time range trips remaining: {len(trips_df)}/{n_trips_after_bbox} ({len(trips_df) / n_trips_after_bbox:.2%})
         Time range stops remaining: {len(stops_df)}/{n_stops_after_bbox} ({len(stops_df) / n_stops_after_bbox:.2%})
@@ -73,7 +73,7 @@ def crop(
         """
     )
 
-    llog.info(
+    rlog.info(
         f"""\
         Crop results:
         # of trips: {len(trips_df)} ({len(trips_df) / n_trips:.2%})
@@ -103,7 +103,7 @@ def crop_stops(
     """
     Trim stops to those within the bounding box.
     """
-    llog.debug(
+    rlog.debug(
         f"""
     New Bounding Box:
     lat_min: {lat_min}
