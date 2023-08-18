@@ -2,15 +2,10 @@
 # import sys
 # sys.path.append("./src/")
 
-from typing import Optional
-from package import storage, strtime
+from package import storage
 from package.raptor.example_labels import ActivityDurationLabel
 from package.structs import build
 from package.raptor.mcraptor import McRaptor
-from package.raptor import bag
-from typing_extensions import Self
-
-from package.tracer.tracer import TraceFootpath, TraceStart, TraceTrip
 
 footpaths_dict = storage.read_any_dict("../data/footpaths.pkl")
 footpaths_dict = footpaths_dict["footpaths"]

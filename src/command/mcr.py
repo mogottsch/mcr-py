@@ -1,11 +1,10 @@
 from typing_extensions import Annotated
-from pyrosm.data import os
-import typer
-from command.footpaths import CITY_ID_HELP, OSM_HELP, STOPS_HELP
 
-from package import storage, mcr
-from package.footpaths import GenerationMethod, generate as direct_generate
-from package.key import COMPLETE_GTFS_CLEAN_COMMAND_NAME, STOPS_KEY, FOOTPATHS_KEY
+import typer
+from pyrosm.data import os
+
+from command.footpaths import CITY_ID_HELP, OSM_HELP, STOPS_HELP
+from package.mcr import mcr
 from package.logger import Timed
 
 

@@ -1,7 +1,8 @@
 from typing_extensions import Annotated
 import typer
 
-from package import key, osm
+from package import key
+from package.osm import osm
 
 
 app = typer.Typer()

@@ -1,14 +1,13 @@
 import os
 import hashlib
-import tempfile
 
 import pandas as pd
 import geopandas as gpd
 from pandas.util import hash_pandas_object
 
-from package import key
+from package import storage
 
-tempdir = os.path.join(tempfile.gettempdir(), key.TMP_DIR_NAME)
+tempdir = storage.get_tmp_path()
 
 
 def hash_gdf(gdf: gpd.GeoDataFrame) -> int:

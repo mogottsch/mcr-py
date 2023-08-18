@@ -1,14 +1,11 @@
 from enum import Enum
 import os
 
-import pyrosm
 import geopandas as gpd
-import networkx as nx
-import osmnx as ox
 
 from package.osm import osm
 from package.logger import Timed, rlog
-from package.graph import igraph, fast_path
+from package.osm import igraph, graph
 from package import storage
 
 
@@ -52,10 +49,10 @@ def generate(
         nodes, edges = osm.get_graph_for_city_cropped_to_stops(osm_reader, stops_df)
 
     with Timed.info("Creating networkx graph"):
-        nx_graph = create_nx_graph(osm_reader, nodes, edges)
+        nx_graph = graph.create_nx_graph(osm_reader, nodes, edges)
 
     with Timed.info("Adding nearest network node to each stop"):
-        stops_df = add_nearest_node_to_stops(stops_df, nx_graph)
+        stops_df = graph.add_nearest_node_to_stops(stops_df, nx_graph)
 
     with Timed.info("Finding potential nearby stops for each stop"):
         nearby_stops_map = create_nearby_stops_map(
@@ -83,9 +80,7 @@ def generate(
                 source_targets_map, osm_reader, nodes, edges
             )
         elif method == GenerationMethod.FAST_PATH:
-            source_targets_distance_map = fast_path.query_multiple_one_to_many(
-                source_targets_map, edges
-            )
+            raise NotImplementedError()
 
     footpaths: dict[str, dict[str, int]] = {}
     for source_node, targets_distance_map in source_targets_distance_map.items():
@@ -96,26 +91,6 @@ def generate(
         }
 
     return footpaths
-
-
-def create_nx_graph(
-    osm: pyrosm.OSM, nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame
-) -> nx.Graph:
-    return osm.to_graph(nodes, edges, graph_type="networkx", network_type="walking")  # type: ignore
-
-
-def add_nearest_node_to_stops(
-    stops_df: gpd.GeoDataFrame, nx_graph: nx.Graph
-) -> gpd.GeoDataFrame:
-    nodes, dists = ox.nearest_nodes(
-        nx_graph,
-        stops_df.stop_lon.astype(float),  # TODO: improve this
-        stops_df.stop_lat.astype(float),
-        return_dist=True,
-    )  # type: ignore
-    stops_df["nearest_node"] = nodes
-    stops_df["nearest_node_dist"] = dists
-    return stops_df
 
 
 def create_nearby_stops_map(

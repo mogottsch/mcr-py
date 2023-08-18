@@ -1,10 +1,10 @@
 from typing_extensions import Any
 import requests
-import tempfile
 import pandas as pd
 import geopandas as gpd
 import os
 import pickle
+from package import key
 
 from package.gtfs import dtypes
 
@@ -54,7 +54,7 @@ def read_any_dict(path: str) -> dict[str, Any]:
 
 
 def get_tmp_path(*paths: str) -> str:
-    return os.path.join(tempfile.gettempdir(), *paths)
+    return os.path.join(key.TMP_DIR_LOCATION, key.ROOT_TMP_DIR_NAME, *paths)
 
 
 def download_file(url: str, path: str):

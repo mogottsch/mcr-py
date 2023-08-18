@@ -1,10 +1,9 @@
 import shutil
 from pandas.compat import os
-from package.raptor.example_labels import ActivityDurationLabel, ArrivalTimeLabel
+from package.raptor.example_labels import ArrivalTimeLabel
 
 from package.raptor.mcraptor import McRaptor
 from package import storage, strtime
-from package.output import enrich_raptor_trace_results
 from package.tracer.tracer import (
     TraceFootpath,
     TraceStart,

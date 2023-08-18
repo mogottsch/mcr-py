@@ -15,7 +15,7 @@ from package.logger import Timed, rlog
 from package.logger import rlog
 from package import console, key, storage
 
-OSM_DIR_PATH = storage.get_tmp_path(key.TMP_DIR_NAME, key.TMP_OSM_DIR_NAME)
+OSM_DIR_PATH = storage.get_tmp_path(key.TMP_OSM_DIR_NAME)
 
 
 def list_available(selector: str):
@@ -54,7 +54,7 @@ def get_graph_for_city_cropped_to_stops(
         ]
     )
 
-    rlog.info(f"Hash for OSM network: {hash}")
+    rlog.debug(f"Hash for OSM network: {hash}")
 
     if cache.cache_entry_exists(
         hash, osm_key.EDGES_FILE_IDENTIFIER
@@ -76,6 +76,18 @@ def get_graph_for_city_cropped_to_stops(
         cache.cache_gdf(edges, hash, osm_key.EDGES_FILE_IDENTIFIER)
 
     return nodes, edges
+
+
+def get_osm_reader_for_city_id_or_osm_path(city_id: str, osm_path: str) -> pyrosm.OSM:
+    osm_path = osm_path if osm_path else osm.get_osm_path_from_city_id(city_id)
+
+    if not os.path.exists(osm_path) and city_id:
+        with Timed.info("Downloading OSM data"):
+            osm.download_city(city_id, osm_path)
+    else:
+        rlog.info("Using existing OSM data")
+
+    return new_osm_reader(osm_path)
 
 
 def new_osm_reader(path: str, **kwargs) -> pyrosm.OSM:
