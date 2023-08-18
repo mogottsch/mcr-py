@@ -4,12 +4,14 @@ import typer
 from pyrosm.data import os
 
 from command.footpaths import CITY_ID_HELP, OSM_HELP, STOPS_HELP
+from command.raptor import STRUCTS_HELP
 from package.mcr import mcr
 from package.logger import Timed
 
 
 def run(
     stops: Annotated[str, typer.Option(help=STOPS_HELP)],
+    structs: Annotated[str, typer.Option(help=STRUCTS_HELP)],
     city_id: Annotated[
         str,
         typer.Option(
@@ -19,23 +21,26 @@ def run(
     osm: Annotated[str, typer.Option(help=OSM_HELP)] = "",
 ):
     validate_flags(
+        stops,
+        structs,
         city_id,
         osm,
-        stops,
     )
 
     with Timed.info("Running MCR"):
         mcr.run(
             stops,
+            structs,
             city_id,
             osm,
         )
 
 
 def validate_flags(
+    stops: str,
+    structs: str,
     city_id: str,
     osm: str,
-    stops: str,
 ):
     if not city_id and not osm:
         raise typer.BadParameter(
@@ -47,3 +52,6 @@ def validate_flags(
 
     if not os.path.isfile(stops):
         raise typer.BadParameter(f"File '{stops}' does not exist.")
+
+    if not os.path.exists(structs):
+        raise typer.BadParameter(f"Structs file {structs} does not exist.")

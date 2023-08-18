@@ -66,6 +66,21 @@ pub fn run_mlc(_py: Python, graph_cache: &GraphCache, start_node_id: usize) -> P
 }
 
 #[pyfunction]
+pub fn run_mlc_with_node_and_time(
+    _py: Python,
+    graph_cache: &GraphCache,
+    start_node_id: usize,
+    time: usize,
+) -> PyBags {
+    let g = graph_cache.graph.as_ref().unwrap();
+    let mut mlc = MLC::new(g).unwrap();
+    mlc.set_start_node_with_time(start_node_id, time);
+    let bags = mlc.run().unwrap();
+
+    PyBags(bags.clone())
+}
+
+#[pyfunction]
 pub fn run_mlc_with_bags(
     _py: Python,
     graph_cache: &GraphCache,

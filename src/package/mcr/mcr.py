@@ -6,10 +6,13 @@ import geopandas as gpd
 import mcr_py
 from mcr_py import GraphCache
 import pyrosm
-from package import storage
+from package import storage, strtime
 from package.logger import Timed
+from package.mcr.label import McRAPTORLabel
 from package.mcr.path import PathManager, PathType
 from package.osm import osm, graph
+from package.raptor.mcraptor_single import McRaptorSingle
+from package.raptor.bag import Bag
 from package.rust.bag import convert_to_intermediate_bags
 
 
@@ -22,9 +25,11 @@ AVG_BIKING_SPEED = 4.0  # m/s
 
 def run(
     stops_path: str,
+    structs: str,
     city_id: str = "",
     osm_path: str = "",
 ):
+    structs_dict = storage.read_any_dict(structs)
     with Timed.info("Reading stops"):
         stops_df = storage.read_gdf(stops_path)
 
@@ -37,6 +42,9 @@ def run(
         edges: pd.DataFrame = edges[["u", "v", "length"]]  # type: ignore
 
         stops_df = graph.add_nearest_node_to_stops(stops_df, nxgraph)
+
+        stop_node_map = stops_df.set_index("stop_id")["nearest_node"].to_dict()
+        node_stop_map = {v: k for k, v in stop_node_map.items()}
 
         nodes = mark_bicycles(nodes)
 
@@ -73,11 +81,15 @@ def run(
 
     with Timed.info("Running Dijkstra step"):
         start_node_id = 295101994
-        bags = mcr_py.run_mlc(walking_gc, walking_node_map[f"W{start_node_id}"])
+        walking_result_bags = mcr_py.run_mlc_with_node_and_time(
+            walking_gc,
+            walking_node_map[f"W{start_node_id}"],
+            strtime.str_time_to_seconds("08:00:00"),
+        )
 
     path_manager = PathManager()
-    intermediate_bags = convert_to_intermediate_bags(bags)
-    path_manager.extract_all_paths_from_bags(intermediate_bags, PathType.WALKING)
+    walking_result_bags = convert_to_intermediate_bags(walking_result_bags)
+    path_manager.extract_all_paths_from_bags(walking_result_bags, PathType.WALKING)
 
     # translates a node id from the walking graph to the corresponding bicycle
     # node id from the multi-modal graph
@@ -92,7 +104,7 @@ def run(
     # filter bags at bicycle nodes
     bicycle_bags = {
         node_id: bag
-        for node_id, bag in intermediate_bags.items()
+        for node_id, bag in walking_result_bags.items()
         if node_id in bicycle_transfer_nodes_walking_node_ids
     }
     # translate node ids
@@ -108,16 +120,50 @@ def run(
     for node_id in bicycle_bags.keys():
         gc.validate_node_id(node_id)
 
-    new_bags = mcr_py.run_mlc_with_bags(gc, bicycle_bags)  # type: ignore
+    bicycle_result_bags = mcr_py.run_mlc_with_bags(gc, bicycle_bags)  # type: ignore
+    bicycle_result_bags = convert_to_intermediate_bags(bicycle_result_bags)
+    path_manager.extract_all_paths_from_bags(
+        bicycle_result_bags, PathType.CYCLING_WALKING, path_index_offset=1
+    )
 
-    new_intermediate_bags = convert_to_intermediate_bags(new_bags)
-    path_manager.extract_all_paths_from_bags(new_intermediate_bags, PathType.CYCLING_WALKING, path_index_offset=1)
+    # --- McRAPTOR step
+    def translate_walking_node_id_to_stop_id(walking_node_id: int) -> str | None:
+        original_walking_node = reverse_walking_node_map[walking_node_id]
+        original_bicycle_node = int(original_walking_node[1:])
+        if original_bicycle_node in node_stop_map:
+            stop_id = str(node_stop_map[original_bicycle_node])
+            return stop_id
+        return None
+
+    mc_raptor_bags = {
+        node_id: bag
+        for node_id, bag in walking_result_bags.items()
+        if translate_walking_node_id_to_stop_id(node_id) is not None
+    }
+    mc_raptor_bags = {
+        translate_walking_node_id_to_stop_id(node_id): Bag.from_labels(
+            [
+                label.to_mc_raptor_label(translate_walking_node_id_to_stop_id(node_id))  # type: ignore
+                for label in labels
+            ]
+        )
+        for node_id, labels in mc_raptor_bags.items()
+    }
+
+    mc_raptor = McRaptorSingle(
+        structs_dict,
+        60,
+        McRAPTORLabel,
+    )
+    mc_raptor_result_bags = mc_raptor.run(mc_raptor_bags)  # type: ignore
 
     storage.write_any_dict(
         {
-            "intermediate_bags": intermediate_bags,
+            "intermediate_bags": walking_result_bags,
             "path_manager": path_manager,
-            "new_intermediate_bags": new_intermediate_bags,
+            "new_intermediate_bags": bicycle_result_bags,
+            "mc_raptor_result_bags": mc_raptor_result_bags,
+            "mc_raptor_bags": mc_raptor_bags,
             "node_map": node_map,
             "walking_node_map": walking_node_map,
         },

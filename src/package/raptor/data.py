@@ -7,11 +7,7 @@ from package.structs import build
 
 
 class DataQuerier:
-    def __init__(
-        self: Self,
-        structs_dict: dict,
-        footpaths: dict,
-    ):
+    def __init__(self: Self, structs_dict: dict, footpaths: dict | None):
         self.footpaths = footpaths
 
         (
@@ -66,6 +62,10 @@ class DataQuerier:
                 return trip_id, departure_time
 
     def iterate_footpaths_from_stop(self, stop_id: str):
+        if self.footpaths == None:
+            raise Exception(
+                "footpaths has to be defined when calling iterate_footpaths_from_stop"
+            )
         return self.footpaths[stop_id].items()
 
     def iterate_stops_in_route_from_idx(
@@ -78,7 +78,7 @@ class ExpandedDataQuerier(Generic[S, T], DataQuerier):
     def __init__(
         self: Self,
         structs_dict: dict,
-        footpaths: dict,
+        footpaths: dict | None,
         additional_stop_information: dict[str, S],
         additional_trip_information: dict[str, T],
     ):

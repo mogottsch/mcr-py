@@ -3,7 +3,7 @@ from typing import Generic, Optional, TypeVar
 from typing_extensions import Self
 
 from package.key import S, T
-from package.raptor.data import ExpandedDataQuerier
+from package.raptor.data import DataQuerier, ExpandedDataQuerier
 from package.tracer.tracer import TraceFootpath, TraceStart, TraceTrip
 
 
@@ -48,6 +48,12 @@ class Bag:
 
     def __repr__(self):
         return repr(self._bag)
+
+    @staticmethod
+    def from_labels(labels: list[BaseLabel]):
+        bag = Bag()
+        bag._bag = set(labels)
+        return bag
 
     def add_if_necessary(self, label: BaseLabel) -> bool:
         if not self.content_dominates(label):
@@ -108,7 +114,7 @@ ArrivalTimePerTrip = dict[str, int]
 class RouteBag(Generic[L, S, T]):
     def __init__(
         self,
-        dq: ExpandedDataQuerier[S, T],
+        dq: ExpandedDataQuerier[S, T] | DataQuerier,
     ):
         self._bag: set[tuple[L, str]] = set()
         self._dq = dq

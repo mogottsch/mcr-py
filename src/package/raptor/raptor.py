@@ -130,9 +130,6 @@ class Raptor:
     ) -> tuple[Optional[str], TausPerIteration, TausBest, TracerMap]:
         tau_best_end_stop_id = tau_best[end_stop_id] if end_stop_id else sys.maxsize
 
-        if route_id == "100013_1_A":
-            print(route_id)
-
         if trip_id is not None and self.dq.get_arrival_time(trip_id, stop_id) < min(
             tau_best[stop_id], tau_best_end_stop_id
         ):
