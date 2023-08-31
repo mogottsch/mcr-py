@@ -19,6 +19,13 @@ class Path:
         self.path = path
 
 
+class GTFSPath:
+    def __init__(self, start_stop_id: int, end_stop_id: int, trip_id: str):
+        self.start_stop_id = start_stop_id
+        self.end_stop_id = end_stop_id
+        self.trip_id = trip_id
+
+
 class PathManager:
     def __init__(self):
         self.paths: dict[int, Path] = {}
@@ -64,15 +71,28 @@ class PathManager:
 
     def reconstruct_and_translate_path_for_label(
         self, label: IntermediateLabel, translator_map: dict[PathType, dict[Any, Any]]
-    ) -> list[Path]:
-        translated_path: list[Path] = []
+    ) -> list[Any]:
+        translated_path: list[Any] = []
         for path_id in label.path:
             assert isinstance(path_id, int)
             path = self.paths[path_id]
-            translated_path.append(
-                Path(
-                    path_type=path.path_type,
-                    path=[translator_map[path.path_type][p] for p in path.path],
+            if path.path_type in [PathType.WALKING, PathType.CYCLING_WALKING]:
+                translated_path.append(
+                    Path(
+                        path_type=path.path_type,
+                        path=[translator_map[path.path_type][p] for p in path.path],
+                    )
                 )
-            )
+            elif path.path_type == PathType.PUBLIC_TRANSPORT:
+                if len(path.path) != 3:
+                    raise ValueError(
+                        f"Expected path to have length 3, got {len(path.path)} instead. Path: {path.path}"
+                    )
+                translated_path.append(
+                    GTFSPath(
+                        start_stop_id=int(path.path[0]),
+                        trip_id=str(path.path[1]),
+                        end_stop_id=int(path.path[2]),
+                    )
+                )
         return translated_path

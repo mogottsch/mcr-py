@@ -26,6 +26,9 @@ class BaseLabel:
     def update_before_route_bag_merge(self, departure_time: int, stop_id: str):
         self.arrival_time = departure_time
 
+    def update_before_stop_bag_merge(self, stop_id: str):
+        pass
+
     def to_human_readable(self):
         pass
 
@@ -73,6 +76,7 @@ class Bag:
             other for other in self._bag if not label.strictly_dominates(other)
         }
 
+    # merge other into self
     def merge(self: Self, other: Self) -> bool:
         is_any_added = False
         for label in other._bag:
@@ -98,6 +102,11 @@ class Bag:
     def add_arrival_time_to_all(self, time: int):
         for label in self._bag:
             label.arrival_time += time
+
+    def update_before_stop_bag_merge(self, stop_id: str) -> Self:
+        for label in self._bag:
+            label.update_before_stop_bag_merge(stop_id)
+        return self
 
     def to_human_readable(self):
         return list((label.to_human_readable()) for label in self._bag)
@@ -125,28 +134,32 @@ class RouteBag(Generic[L, S, T]):
     def __repr__(self):
         return repr(self._bag)
 
-    def add_if_necessary(self, label: L, trip: str):
+    def add_if_necessary(self, label: L, trip: str) -> Self:
         if not self.content_dominates(label):
             self.remove_dominated_by(label)
             self.add(label, trip)
+        return self
 
-    def add(self, label: L, trip: str):
+    def add(self, label: L, trip: str) -> Self:
         self._bag.add((label.copy(), trip))
+        return self
 
-    def content_dominates(self, label: L):
+    def content_dominates(self, label: L) -> bool:
         return any(other.strictly_dominates(label) for other, _ in self._bag)
 
-    def remove_dominated_by(self, label: L):
+    def remove_dominated_by(self, label: L) -> Self:
         self._bag = {
             (other_label, other_trip)
             for other_label, other_trip in self._bag
             if not label.strictly_dominates(other_label)
         }
+        return self
 
-    def update_along_trip(self, stop_id: str):
+    def update_along_trip(self, stop_id: str) -> Self:
         for label, trip in self._bag:
             arrival_time = self._dq.get_arrival_time(trip, stop_id)
             label.update_along_trip(arrival_time, stop_id, trip)
+        return self
 
     def get_trips(self) -> set[str]:
         return set(trip for _, trip in self._bag)

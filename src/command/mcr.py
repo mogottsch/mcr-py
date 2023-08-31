@@ -28,12 +28,13 @@ def run(
     )
 
     with Timed.info("Running MCR"):
-        mcr.run(
+        mcr_runner = mcr.MCR(
             stops,
             structs,
             city_id,
             osm,
         )
+        mcr_runner.run()
 
 
 def validate_flags(

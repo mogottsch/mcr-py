@@ -7,7 +7,7 @@ use mlc::{
 };
 use pyo3::{prelude::*, types::PyList};
 
-use super::graph_cache::GraphCache;
+use super::{graph_cache::GraphCache, label::next_bike_tariff};
 
 pub struct PyBags(Bags<usize>);
 
@@ -16,7 +16,7 @@ pub struct PyLabel {
     #[pyo3(get)]
     pub values: Vec<u64>,
     #[pyo3(get)]
-    pub hidden_values: Option<Vec<u64>>,
+    pub hidden_values: Vec<u64>,
     #[pyo3(get)]
     pub path: Vec<usize>,
     #[pyo3(get)]
@@ -80,11 +80,35 @@ pub fn run_mlc_with_node_and_time(
     PyBags(bags.clone())
 }
 
+#[derive(Debug)]
+enum UpdateLabelFunc {
+    NextBikeTariff,
+    None,
+}
+
+impl UpdateLabelFunc {
+    fn from_str(func_name: &str) -> Self {
+        match func_name {
+            "next_bike_tariff" => UpdateLabelFunc::NextBikeTariff,
+            "none" => UpdateLabelFunc::None,
+            _ => panic!("Unknown update label function: {}", func_name),
+        }
+    }
+
+    fn get_func(&self) -> Option<fn(&Label<usize>, &Label<usize>) -> Label<usize>> {
+        match self {
+            UpdateLabelFunc::NextBikeTariff => Some(next_bike_tariff),
+            UpdateLabelFunc::None => None,
+        }
+    }
+}
+
 #[pyfunction]
 pub fn run_mlc_with_bags(
     _py: Python,
     graph_cache: &GraphCache,
     bags: HashMap<usize, Vec<&PyAny>>,
+    update_label_func: Option<String>,
 ) -> PyBags {
     // convert the PyAny's to Labels
     let mut converted_bags: Bags<usize> = HashMap::new();
@@ -113,7 +137,7 @@ pub fn run_mlc_with_bags(
                 .unwrap();
             let label = Label {
                 values,
-                hidden_values,
+                hidden_values: hidden_values.unwrap_or(vec![]),
                 path,
                 node_id,
             };
@@ -124,6 +148,11 @@ pub fn run_mlc_with_bags(
 
     let g = graph_cache.graph.as_ref().unwrap();
     let mut mlc = MLC::new(g).unwrap();
+    let update_label_func = update_label_func.unwrap_or_else(|| "none".to_string());
+    let update_label_func = UpdateLabelFunc::from_str(&update_label_func).get_func();
+    if let Some(func) = update_label_func {
+        mlc.set_update_label_func(func);
+    }
     mlc.set_bags(converted_bags);
 
     let bags = mlc.run().unwrap();

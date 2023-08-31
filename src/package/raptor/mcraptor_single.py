@@ -1,4 +1,5 @@
-from typing import Generic
+from copy import deepcopy
+from typing import Generic, Tuple
 from typing_extensions import Any, Self
 
 from package.key import S, T
@@ -26,24 +27,33 @@ class McRaptorSingle(Generic[L, S, T]):
     def run(
         self,
         bags: dict[str, Bag],
-    ) -> dict[str, Any]:
-        marked_stops = self.init_vars(bags)
+    ) -> dict[str, Bag]:
+        output_bags, marked_stops = self.init_vars(bags)
 
         Q = self.collect_Q(marked_stops)
 
-        bags, marked_stops = self.process_routes(Q, bags)
+        output_bags, marked_stops = self.process_routes(Q, bags, output_bags)
 
         if len(marked_stops) == 0:
             rlog.info("No updates")
-        return bags
+        return output_bags
 
     def init_vars(
         self,
         bags: dict[str, Bag],
-    ) -> set[str]:
+    ) -> Tuple[dict[str, Bag], set[str]]:
+        n_missing_stops = 0
+        for stop_id in self.dq.stop_id_set:
+            if stop_id not in bags:
+                bags[stop_id] = Bag()
+                n_missing_stops += 1
+        rlog.info(f"Added {n_missing_stops} missing stops to bags ({n_missing_stops / len(self.dq.stop_id_set) * 100:.2f}%)")
+
+        output_bags = deepcopy(bags)
+
         marked_stops = set(bags.keys())
 
-        return marked_stops
+        return output_bags, marked_stops
 
     def collect_Q(
         self: Self,
@@ -67,6 +77,7 @@ class McRaptorSingle(Generic[L, S, T]):
         self: Self,
         Q: dict[str, tuple[str, int]],
         bags: dict[str, Bag],
+        output_bags: dict[str, Bag],
     ) -> tuple[dict[str, Bag], set[str]]:
         marked_stops = set()
         for route_id, (stop_id, idx) in Q.items():
@@ -75,20 +86,22 @@ class McRaptorSingle(Generic[L, S, T]):
             )
 
             for stop_id in self.dq.iterate_stops_in_route_from_idx(route_id, idx):
-                bags, marked_stops, route_bag = self.process_route(
+                output_bags, marked_stops, route_bag = self.process_route(
                     route_id,
                     stop_id,
                     bags,
+                    output_bags,
                     route_bag,
                     marked_stops,
                 )
-        return bags, marked_stops
+        return output_bags, marked_stops
 
     def process_route(
         self,
         route_id: str,
         stop_id: str,
         bags: dict[str, Bag],
+        output_bags: dict[str, Bag],
         route_bag: RouteBag,
         marked_stops: set[str],
     ) -> tuple[dict[str, Bag], set[str], RouteBag]:
@@ -96,11 +109,14 @@ class McRaptorSingle(Generic[L, S, T]):
         route_bag.update_along_trip(stop_id)
 
         # second step - merge route_bag into stop_bag
-        stop_bag = bags[stop_id]
-        is_any_added = stop_bag.merge(route_bag.to_bag())
+        output_stop_bag = output_bags[stop_id]
+        is_any_added = output_stop_bag.merge(
+            route_bag.to_bag().update_before_stop_bag_merge(stop_id),
+        )
         if is_any_added:
             marked_stops.add(stop_id)
 
+        stop_bag = bags[stop_id]
         # third step - merge stop_bag into route_bag
         self.merge_bag_into_route_bag(
             route_bag,
@@ -108,7 +124,7 @@ class McRaptorSingle(Generic[L, S, T]):
             route_id,
             stop_id,
         )
-        return bags, marked_stops, route_bag
+        return output_bags, marked_stops, route_bag
 
     # TODO: should this be moved into RouteBag?
     def merge_bag_into_route_bag(
