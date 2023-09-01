@@ -18,7 +18,7 @@ def setup(log_level: str):
     )
 
 
-llog = logging.getLogger("rich")
+rlog = logging.getLogger("rich")
 
 
 class Timed:
@@ -44,19 +44,19 @@ class Timed:
         self.f = UpStackFilter()
 
     def __enter__(self):
-        llog.addFilter(self.f)
-        llog.log(self.level, self.msg, *self.args, **self.kwargs)
+        rlog.addFilter(self.f)
+        rlog.log(self.level, self.msg, *self.args, **self.kwargs)
 
     def __exit__(self, exc_type, exc_value, traceback):
         duration = time() - self.time
         outcome = "failed" if exc_type else "done"
-        llog.log(
+        rlog.log(
             self.level,
             self.msg + f" {outcome} ({format_duration(duration)})",
             *self.args,
             **self.kwargs,
         )
-        llog.removeFilter(self.f)
+        rlog.removeFilter(self.f)
 
     @staticmethod
     def debug(msg, *args, **kwargs):

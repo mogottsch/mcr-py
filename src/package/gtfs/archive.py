@@ -9,7 +9,7 @@ from package.key import (
     TRIPS_KEY,
     STOPS_KEY,
 )
-from package.logger import llog
+from package.logger import rlog
 
 
 def get_gtfs_filename(name: str) -> str:
@@ -55,7 +55,7 @@ def read_dfs(gtfs_zip_path: str) -> dict[str, pd.DataFrame]:
 
 def read_file(zip_ref: zipfile.ZipFile, file: str) -> pd.DataFrame:
     with zip_ref.open(file) as f:
-        llog.debug(f"Reading {file}")
+        rlog.debug(f"Reading {file}")
         df = pd.read_csv(f, dtype=dtypes.GTFS_DTYPES)  # type: ignore
         return df
 

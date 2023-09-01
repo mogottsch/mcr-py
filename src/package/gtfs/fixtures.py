@@ -128,10 +128,16 @@ def stops_df() -> pd.DataFrame:
     )
 
 
+@pytest.fixture
+def routes_df() -> pd.DataFrame:
+    # route_id, direction_id
+    return pd.DataFrame([[ROUTE1_ID]], columns=["route_id"])
+
+
 @pytest.fixture()
 def cleaned_trips_df(
-    trips_df: pd.DataFrame, stop_times_df: pd.DataFrame
+    trips_df: pd.DataFrame, stop_times_df: pd.DataFrame, routes_df: pd.DataFrame
 ) -> pd.DataFrame:
-    trips_df = split_routes(trips_df, stop_times_df)
+    trips_df, routes_df = split_routes(trips_df, stop_times_df, routes_df)
     trips_df = add_first_stop_info(trips_df, stop_times_df)
     return trips_df

@@ -4,8 +4,8 @@ from typing_extensions import Self
 import sys
 
 from package import strtime
-from package.logger import llog
-from package.structs import build
+from package.logger import rlog
+from package.raptor.data import DataQuerier
 from package.tracer.tracer import (
     TraceStart,
     TraceTrip,
@@ -27,26 +27,8 @@ class Raptor:
         max_transfers: int,
         default_transfer_time: int,
     ):
-        (
-            # stop_times_by_trip,
-            trip_ids_by_route,
-            stops_by_route,
-            idx_by_stop_by_route,
-            routes_by_stop,
-            times_by_stop_by_trip,
-            stop_id_set,
-            # route_id_set,
-            # trip_id_set,
-        ) = build.unpack_structs(structs_dict)
+        self.dq = DataQuerier(structs_dict, footpaths)
 
-        self.trip_ids_by_route = trip_ids_by_route
-        self.stops_by_route = stops_by_route
-        self.idx_by_stop_by_route = idx_by_stop_by_route
-        self.routes_by_stop = routes_by_stop
-        self.times_by_stop_by_trip = times_by_stop_by_trip
-        self.stop_id_set = stop_id_set
-
-        self.footpaths = footpaths
         self.max_transfers = max_transfers
         self.default_transfer_time = default_transfer_time
 
@@ -59,7 +41,7 @@ class Raptor:
 
         k = 0
         for k in range(1, self.max_transfers + 1):
-            llog.debug(f"iteration {k}")
+            rlog.debug(f"iteration {k}")
             tau_i[k] = tau_i[k - 1].copy()
 
             Q = self.collect_Q(marked_stops)
@@ -79,20 +61,20 @@ class Raptor:
 
             marked_stops.update(additional_marked_stops)
 
-            llog.debug(f"marked_stops: {marked_stops}")
-            llog.debug(f"tau_i: {tau_i[k]}")
+            rlog.debug(f"marked_stops: {marked_stops}")
+            rlog.debug(f"tau_i: {tau_i[k]}")
 
             if len(marked_stops) == 0:
                 break
 
-        llog.info(f"RAPTOR finished after {k} iterations")
+        rlog.info(f"RAPTOR finished after {k} iterations")
         return seconds_dict_to_times_dict(tau_best), tracers_map
 
     def collect_Q(self, marked_stops: set[str]) -> dict[str, tuple[str, int]]:
         Q: dict[str, tuple[str, int]] = {}
         for stop_id in marked_stops:
-            for route_id in self.get_routes_serving_stop(stop_id):
-                idx = self.get_idx_of_stop_in_route(stop_id, route_id)
+            for route_id in self.dq.get_routes_serving_stop(stop_id):
+                idx = self.dq.get_idx_of_stop_in_route(stop_id, route_id)
                 if route_id not in Q:
                     Q[route_id] = (stop_id, idx)
                     continue
@@ -119,7 +101,7 @@ class Raptor:
 
             tracers_map.clear_last_hop()
 
-            for stop_id in self.stops_by_route[route_id][idx:]:
+            for stop_id in self.dq.iterate_stops_in_route_from_idx(route_id, idx):
                 trip_id, tau_i, tau_best, tracers_map = self.process_route(
                     route_id,
                     trip_id,
@@ -148,7 +130,7 @@ class Raptor:
     ) -> tuple[Optional[str], TausPerIteration, TausBest, TracerMap]:
         tau_best_end_stop_id = tau_best[end_stop_id] if end_stop_id else sys.maxsize
 
-        if trip_id is not None and self.get_arrival_time(trip_id, stop_id) < min(
+        if trip_id is not None and self.dq.get_arrival_time(trip_id, stop_id) < min(
             tau_best[stop_id], tau_best_end_stop_id
         ):
             self.update_tau_through_trip(
@@ -157,7 +139,7 @@ class Raptor:
             marked_stops.add(stop_id)
 
         ready_to_depart = tau_i[k - 1][stop_id] + self.default_transfer_time
-        if ready_to_depart < self.get_departure_time(trip_id, stop_id):
+        if ready_to_depart < self.dq.get_departure_time(trip_id, stop_id):
             new_trip_id = self.find_earlier_trip(
                 route_id, stop_id, ready_to_depart, tracers_map
             )
@@ -174,7 +156,7 @@ class Raptor:
         tau_best: TausBest,
         tracers_map: TracerMap,
     ) -> None:
-        arrival_time = self.get_arrival_time(trip_id, stop_id)
+        arrival_time = self.dq.get_arrival_time(trip_id, stop_id)
         tau_i[k][stop_id] = arrival_time
         tau_best[stop_id] = arrival_time
 
@@ -200,11 +182,10 @@ class Raptor:
         ready_to_depart: int,
         tracers_map: TracerMap,
     ) -> Optional[str]:
-        result = self.earliest_trip(
+        result = self.dq.earliest_trip(
             route_id,
             stop_id,
             ready_to_depart,
-            self.default_transfer_time,
         )
         if result is None:
             # we could not find a new trip, so we return as is
@@ -228,7 +209,9 @@ class Raptor:
     ) -> tuple[set[str], TausPerIteration, TausBest, TracerMap]:
         additional_marked_stops = set()
         for stop_id in marked_stops:
-            for nearby_stop_id, walking_time in self.footpaths[stop_id].items():
+            for nearby_stop_id, walking_time in self.dq.iterate_footpaths_from_stop(
+                stop_id
+            ):
                 nearby_stop_arrival_time = tau_i[k][stop_id] + walking_time
 
                 tau_best_end_stop_id = (
@@ -259,11 +242,11 @@ class Raptor:
         tau_i: dict[int, dict[str, int]] = {
             0: {},
         }
-        tracer = TracerMap(self.stop_id_set)
+        tracer = TracerMap(self.dq.get_stop_ids())
         tau_best = {}
         marked_stops = set()
 
-        for stop_id in self.stop_id_set:
+        for stop_id in self.dq.get_stop_ids():
             tau_i[0][stop_id] = sys.maxsize
             tau_best[stop_id] = sys.maxsize
 
@@ -276,39 +259,6 @@ class Raptor:
         marked_stops.add(start_stop_id)
 
         return tau_i, tau_best, marked_stops, tracer
-
-    def get_routes_serving_stop(self, stop_id: str) -> set[str]:
-        return self.routes_by_stop[stop_id]
-
-    def get_idx_of_stop_in_route(self, stop_id: str, route_id: str) -> int:
-        return self.idx_by_stop_by_route[route_id][stop_id]
-
-    def get_arrival_time(self, trip_id: str, stop_id: str) -> int:
-        assert trip_id is not None
-        assert stop_id is not None
-
-        arrival_time = self.times_by_stop_by_trip[trip_id][stop_id][0]
-        assert type(arrival_time) == int
-        return arrival_time
-
-    def get_departure_time(self, trip_id: Optional[str], stop_id: str) -> int:
-        assert stop_id is not None
-
-        if trip_id is None:
-            return sys.maxsize
-
-        departure_time = self.times_by_stop_by_trip[trip_id][stop_id][1]
-        assert type(departure_time) == int
-        return departure_time
-
-    def earliest_trip(
-        self, route_id: str, stop_id: str, arrival_time: int, change_time: int
-    ) -> Optional[tuple[str, int]]:
-        trip_ids = self.trip_ids_by_route[route_id]  # sorted by departure time
-        for trip_id in trip_ids:
-            departure_time = self.get_departure_time(trip_id, stop_id)
-            if departure_time >= arrival_time + change_time:
-                return trip_id, departure_time
 
 
 def seconds_dict_to_times_dict(seconds_dict: dict[str, int]) -> dict[str, str]:

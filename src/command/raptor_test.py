@@ -16,6 +16,9 @@ EHRENFELD_BF_STOP_ID = "835"
 AMSTERDAMER_STR_STOP_ID = "317"
 VENLOER_STR_STOP_ID = "251"
 
+MAX_TRANSFERS = 10
+DEFAULT_TRANFER_TIME = 180
+
 
 def test_raptor(testdata_path: str):
     output_dir = os.path.join(testdata_path, "output")
@@ -29,7 +32,8 @@ def test_raptor(testdata_path: str):
         start_stop_id=NESSELRODE_STR_STOP_ID,
         start_time="15:00:00",
         output_dir=output_dir,
-        max_transfers=10,
+        max_transfers=MAX_TRANSFERS,
+        default_transfer_time=DEFAULT_TRANFER_TIME,
     )
 
     tracer_map = enrich_raptor_trace_results(
@@ -43,7 +47,7 @@ def test_raptor(testdata_path: str):
 
     # all stops are reachable
     assert (arrival_times.arrival_time == "--:--:--").sum() == 0
-    assert arrival_times.loc[EHRENFELD_BF_STOP_ID, "arrival_time"] == "15:33:27"
+    assert arrival_times.loc[EHRENFELD_BF_STOP_ID, "arrival_time"] == "15:27:27"
 
     tracers = tracer_map.tracers[EHRENFELD_BF_STOP_ID]
     assert len(tracers) == 4
@@ -67,8 +71,8 @@ def test_raptor(testdata_path: str):
     assert isinstance(t13_trace, EnrichedTraceTrip)
     assert t13_trace.start_stop_id == AMSTERDAMER_STR_STOP_ID
     assert t13_trace.end_stop_id == VENLOER_STR_STOP_ID
-    assert t13_trace.departure_time == strtime.str_time_to_seconds("15:20:00")
-    assert t13_trace.arrival_time == strtime.str_time_to_seconds("15:31:00")
+    assert t13_trace.departure_time == strtime.str_time_to_seconds("15:13:00")
+    assert t13_trace.arrival_time == strtime.str_time_to_seconds("15:25:00")
 
     assert isinstance(footpath_trace, EnrichedTraceFootpath)
     assert footpath_trace.start_stop_id == VENLOER_STR_STOP_ID
