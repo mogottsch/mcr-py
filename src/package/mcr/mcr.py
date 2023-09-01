@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Any, Tuple
+from typing import Any, Tuple, TypeVar
 
 import pandas as pd
 import geopandas as gpd
@@ -52,49 +52,63 @@ class MCR:
 
         with Timed.info("Preparing graphs"):
             osm_reader = osm.get_osm_reader_for_city_id_or_osm_path(city_id, osm_path)
-            nodes, edges = osm.get_graph_for_city_cropped_to_stops(
-                osm_reader, self.stops_df
-            )
-            nxgraph = graph.create_nx_graph(osm_reader, nodes, edges)
+            (
+                osm_nodes,
+                osm_edges,
+            ) = osm.get_graph_for_city_cropped_to_stops(osm_reader, self.stops_df)
+            nxgraph = graph.create_nx_graph(osm_reader, osm_nodes, osm_edges)
 
-            nodes: pd.DataFrame = nodes[["id"]]  # type: ignore
-            edges: pd.DataFrame = edges[["u", "v", "length"]]  # type: ignore
+            osm_nodes: pd.DataFrame = osm_nodes[["id"]]  # type: ignore
+            osm_edges: pd.DataFrame = osm_edges[["u", "v", "length"]]  # type: ignore
 
             stops_df = graph.add_nearest_node_to_stops(self.stops_df, nxgraph)
 
             stops_df["stop_id"] = stops_df["stop_id"].astype(int)
-            self.stop_node_map = stops_df.set_index("stop_id")["nearest_node"].to_dict()
+            self.stop_to_osm_node_map: dict[int, int] = stops_df.set_index("stop_id")[
+                "nearest_node"
+            ].to_dict()
+            self.osm_node_to_stop_map: dict[int, int] = {
+                v: k for k, v in self.stop_to_osm_node_map.items()
+            }
 
-            self.node_stop_map = {v: k for k, v in self.stop_node_map.items()}
+            osm_nodes = mark_bicycles(osm_nodes)
+            self.bicycle_transfer_nodes_walking_node_ids = osm_nodes[
+                osm_nodes["has_bicycle"]
+            ].id.values
 
-            nodes = mark_bicycles(nodes)
-
-            graph_components = create_multi_modal_graph(nodes, edges)
-            nodes, edges, walking_nodes, walking_edges = (
-                graph_components["nodes"],
-                graph_components["edges"],
+            graph_components = create_multi_modal_graph(osm_nodes, osm_edges)
+            multi_modal_nodes, multi_modal_edges, walking_nodes, walking_edges = (
+                graph_components["multi_modal_nodes"],
+                graph_components["multi_modal_edges"],
                 graph_components["walking_nodes"],
                 graph_components["walking_edges"],
             )
 
-            nodes, edges, self.node_map = reset_node_ids(nodes, edges)
-            walking_nodes, walking_edges, self.walking_node_map = reset_node_ids(
-                walking_nodes, walking_edges
-            )
-            self.reverse_node_map = get_reverse_map(self.node_map)
-            self.reverse_walking_node_map = get_reverse_map(self.walking_node_map)
+            (
+                multi_modal_nodes,
+                multi_modal_edges,
+                self.multi_modal_node_to_resetted_map,
+            ) = reset_node_ids(multi_modal_nodes, multi_modal_edges)
+            (
+                walking_nodes,
+                walking_edges,
+                self.walking_node_to_resetted_map,
+            ) = reset_node_ids(walking_nodes, walking_edges)
 
-            edges = add_multi_modal_weights(edges)
+            self.resetted_to_multi_modal_node_map = get_reverse_map(
+                self.multi_modal_node_to_resetted_map
+            )
+            self.resetted_to_walking_node_map = get_reverse_map(
+                self.walking_node_to_resetted_map
+            )
+
+            multi_modal_edges = add_multi_modal_weights(multi_modal_edges)
             walking_edges = add_single_modal_weights(walking_edges)
 
-            raw_edges = edges[["u", "v", "weights", "hidden_weights"]].to_dict(
-                "records"
-            )
+            raw_edges = multi_modal_edges[
+                ["u", "v", "weights", "hidden_weights"]
+            ].to_dict("records")
             raw_walking_edges = walking_edges[["u", "v", "weights"]].to_dict("records")
-
-            self.bicycle_transfer_nodes_walking_node_ids = walking_nodes[
-                walking_nodes["has_bicycle"]
-            ].id.values
 
         with Timed.info("Creating graph cache"):
             self.graph_cache = GraphCache()
@@ -111,7 +125,7 @@ class MCR:
         with Timed.info("Running Dijkstra step"):
             walking_result_bags = mcr_py.run_mlc_with_node_and_time(
                 self.walking_graph_cache,
-                self.walking_node_map[f"W{start_node_id}"],
+                self.walking_node_to_resetted_map[f"W{start_node_id}"],
                 start_time_in_seconds,
             )
 
@@ -121,14 +135,17 @@ class MCR:
             )
             init_walking_result_bags = deepcopy(walking_result_bags)
 
+        n_osm_nodes = len(walking_result_bags)
+        rlog.debug(f"Found {n_osm_nodes} osm nodes in walking step")
         ### --- BEGIN LOOP --- ###
 
         for i in range(1, 3):
+            rlog.info(f"Running iteration {i}")
             offset = i * 2 - 1
-            rlog.info(f"Running iteration {i} with offset {offset}")
 
             with Timed.info("Preparing input for bicycle step"):
                 bicycle_bags = self.prepare_bicycle_step_input(walking_result_bags)
+                assert len(bicycle_bags) > 0
             # validation
             for node_id in bicycle_bags.keys():
                 self.graph_cache.validate_node_id(node_id)
@@ -142,6 +159,7 @@ class MCR:
                 bicycle_result_bags = self.convert_bicycle_bags(
                     bicycle_result_bags, path_index_offset=offset
                 )
+                assert len(bicycle_result_bags) == n_osm_nodes
 
             with Timed.info("Preparing input for MCRAPTOR step"):
                 mc_raptor_bags = self.prepare_mcraptor_step_input(walking_result_bags)
@@ -158,22 +176,29 @@ class MCR:
                 mc_raptor_result_bags = self.convert_mc_raptor_bags(
                     mc_raptor_result_bags, path_index_offset=offset
                 )
+                assert len(mc_raptor_result_bags) > 0  # this will eventually fail
 
             with Timed.info("Merging bags"):
                 combined_bags = self.merge_bags(
-                    bicycle_result_bags, mc_raptor_result_bags # i am really unsure whether the input here has the same node ids type
+                    bicycle_result_bags,
+                    mc_raptor_result_bags,  # i am really unsure whether the input here has the same node ids type
                 )
-                # TODO: the ouptput of merge_bags should contain all walking and all biking nodes, we need to trim here right?
+            # combined_bags = self.nullify_hidden_values(combined_bags)
+            assert len(combined_bags) == n_osm_nodes
+
+            with Timed.info("Preparing input for walking step"):
+                walking_bags = self.prepare_walking_step_input(combined_bags)
 
             with Timed.info("Running walking step"):
                 walking_result_bags = mcr_py.run_mlc_with_bags(
                     self.walking_graph_cache,
-                    combined_bags,
+                    walking_bags,
                 )
             with Timed.info("Extracting walking step bags"):
                 walking_result_bags = self.convert_walking_bags(
                     walking_result_bags, path_index_offset=offset + 1
                 )
+                assert len(walking_result_bags) == n_osm_nodes
 
         storage.write_any_dict(
             {
@@ -184,8 +209,8 @@ class MCR:
                 "mc_raptor_result_bags": mc_raptor_result_bags,
                 "mc_raptor_bags": mc_raptor_bags,
                 "combined_bags": combined_bags,
-                "node_map": self.node_map,
-                "walking_node_map": self.walking_node_map,
+                "node_map": self.multi_modal_node_to_resetted_map,
+                "walking_node_map": self.walking_node_to_resetted_map,
                 "stops_df": self.stops_df,
             },
             "/home/moritz/dev/uni/mcr-py/data/bags.pkl",  # type: ignore
@@ -197,8 +222,26 @@ class MCR:
         path_index_offset: int = 0,
         add_zero_weight_to_values: bool = False,
     ) -> IntermediateBags:
+        """
+        Converts the bags from MLC on a walking graph to the intermediate bags
+        format.
+        The node ids will be translated from resetted walking node ids to osm
+        node ids.
+
+        :param bags: The bags resulting from MLC on a walking graph.
+        :param path_index_offset: Used to properly build the path and should
+            be set to the length of the path before the step.
+        :param add_zero_weight_to_values: Whether to add a zero weight to the
+            values of the labels. Needed when adding the 'cost' value after the
+            initial walking MLC step.
+        """
         converted_bags = convert_mlc_bags_to_intermediate_bags(
             bags,
+            translate_node_id=lambda node_id: int(
+                self.resetted_to_walking_node_map[node_id][
+                    1:
+                ]  # remove the 'W' prefix and cast to int
+            ),
             add_zero_weight_to_values=add_zero_weight_to_values,
         )
         self.path_manager.extract_all_paths_from_bags(
@@ -211,23 +254,54 @@ class MCR:
     def convert_bicycle_bags(
         self, bags: dict[int, list[PyLabel]], path_index_offset: int
     ) -> IntermediateBags:
-        converted_bags = convert_mlc_bags_to_intermediate_bags(bags)
+        """
+        Converts the bags from MLC on a multi modal graph to the intermediate
+        bags format.
+        The node ids will be translated from resetted multi modal node ids to
+        osm node ids.
+
+        Note that there are two bags per osm node id, one for the walking
+        and one for the biking graph. Only the bags for the walking graph
+        are used.
+
+
+        :param bags: The bags resulting from MLC on a multi modal graph.
+        :param path_index_offset: Used to properly build the path and should
+            be set to the length of the path before the step.
+        """
+        # only use the bags for walking nodes
+        bags = {
+            node_id: labels
+            for node_id, labels in bags.items()
+            if self.resetted_to_multi_modal_node_map[node_id].startswith("W")
+        }
+        bags = convert_mlc_bags_to_intermediate_bags(
+            bags,
+            translate_node_id=lambda node_id: int(
+                self.resetted_to_multi_modal_node_map[node_id][1:]
+            ),
+        )
         self.path_manager.extract_all_paths_from_bags(
-            converted_bags,
+            bags,
             PathType.CYCLING_WALKING,
             path_index_offset=path_index_offset,
         )
-        return converted_bags
+        return bags
 
     def convert_mc_raptor_bags(
         self, bags: dict[str, Bag], path_index_offset: int
     ) -> IntermediateBags:
-        def translate_stop_id_to_multi_modal_walking_node_id(stop_id: int) -> int:
-            node_id = self.stop_node_map[stop_id]
-            return self.node_map[f"W{node_id}"]
+        """
+        Converts the bags from the McRAPTOR step to the intermediate bags
+        format.
+        The stop ids will be translated to the nearest osm node ids.
 
+        :param bags: The bags resulting from MLC on a multi modal graph.
+        :param path_index_offset: Used to properly build the path and should
+            be set to the length of the path before the step.
+        """
         mc_raptor_result_bags = {
-            translate_stop_id_to_multi_modal_walking_node_id(int(stop_id)): bag
+            self.stop_to_osm_node_map[int(stop_id)]: bag
             for stop_id, bag in bags.items()
         }
         mc_raptor_result_bags = convert_mc_raptor_bags_to_intermediate_bags(
@@ -243,14 +317,13 @@ class MCR:
         return mc_raptor_result_bags
 
     def prepare_bicycle_step_input(self, bags: IntermediateBags) -> IntermediateBags:
-        # translates a node id from the walking graph to the corresponding bicycle
-        # node id from the multi-modal graph
-        def translate_walking_node_id_to_bicycle_node_id(
-            walking_node_id: int,
+        def translate_osm_node_id_to_bicycle_node_id(
+            osm_node_id: int,
         ) -> int:
-            original_walking_node = self.reverse_walking_node_map[walking_node_id]
-            original_bicycle_node = original_walking_node.replace("W", "B")
-            bicycle_node_id = self.node_map[original_bicycle_node]
+            original_bicycle_node = f"B{osm_node_id}"
+            bicycle_node_id = self.multi_modal_node_to_resetted_map[
+                original_bicycle_node
+            ]
             return bicycle_node_id
 
         # filter bags at bicycle nodes
@@ -259,40 +332,61 @@ class MCR:
             for node_id, bag in bags.items()
             if node_id in self.bicycle_transfer_nodes_walking_node_ids
         }
+
         # translate node ids
         bicycle_bags = {
-            translate_walking_node_id_to_bicycle_node_id(node_id): [
-                label.to_mlc_label(
-                    translate_walking_node_id_to_bicycle_node_id(node_id)
-                )
+            translate_osm_node_id_to_bicycle_node_id(node_id): [
+                label.to_mlc_label(translate_osm_node_id_to_bicycle_node_id(node_id))
                 for label in labels
             ]
             for node_id, labels in bicycle_bags.items()
         }
         return bicycle_bags
 
+    def prepare_walking_step_input(self, bags: IntermediateBags) -> IntermediateBags:
+        def translate_osm_node_id_to_walking_node_id(
+            osm_node_id: int,
+        ) -> int:
+            walking_node_id = f"W{osm_node_id}"
+            resetted_walking_node_id = self.walking_node_to_resetted_map[
+                walking_node_id
+            ]
+            return resetted_walking_node_id
+
+        # translate node ids
+        walking_bags = {
+            translate_osm_node_id_to_walking_node_id(node_id): [
+                label.to_mlc_label(
+                    translate_osm_node_id_to_walking_node_id(node_id),
+                    with_hidden_values=False,
+                )
+                for label in labels
+            ]
+            for node_id, labels in bags.items()
+        }
+
+        return walking_bags
+
     # converts bags with node ids to bags with stop ids
     def prepare_mcraptor_step_input(self, bags: IntermediateBags) -> McRAPTORInputBags:
-        def translate_walking_node_id_to_stop_id(
+        def translate_osm_node_id_to_stop_id(
             walking_node_id: int,
         ) -> str | None:
-            original_walking_node = self.reverse_walking_node_map[walking_node_id]
-            original_bicycle_node = int(original_walking_node[1:])
-            if original_bicycle_node in self.node_stop_map:
-                stop_id = str(self.node_stop_map[original_bicycle_node])
+            if walking_node_id in self.osm_node_to_stop_map:
+                stop_id = str(self.osm_node_to_stop_map[walking_node_id])
                 return stop_id
             return None
 
         mc_raptor_bags = {
             node_id: bag
             for node_id, bag in bags.items()
-            if translate_walking_node_id_to_stop_id(node_id) is not None
+            if translate_osm_node_id_to_stop_id(node_id) is not None
         }
         mc_raptor_bags_string: McRAPTORInputBags = {
-            translate_walking_node_id_to_stop_id(node_id): Bag.from_labels(
+            translate_osm_node_id_to_stop_id(node_id): Bag.from_labels(
                 [
                     label.to_mc_raptor_label(
-                        translate_walking_node_id_to_stop_id(node_id), null_cost=True  # type: ignore
+                        translate_osm_node_id_to_stop_id(node_id), null_cost=True  # type: ignore
                     )
                     for label in labels
                 ]
@@ -304,29 +398,35 @@ class MCR:
 
     def merge_bags(
         self,
-        bicycle_result_bags: IntermediateBags,
-        mc_raptor_result_bags: IntermediateBags,
+        bags_a: IntermediateBags,
+        bags_b: IntermediateBags,
     ) -> IntermediateBags:
+        """
+        Merges two bag dictionaries into one.
+        Expects that bags_a has a bag for every node in bags_b.
+        """
         combined_bags = deepcopy(
-            bicycle_result_bags
+            bags_a
         )  # remove deepcopy, if you are sure, that bicycle_result_bags is not used anymore
-        for node_id, bag in mc_raptor_result_bags.items():
-            # merged_bag = (
-            #     merge_intermediate_bags(combined_bags[node_id], bag)
-            #     if node_id in combined_bags
-            #     else bag
-            # )
+        for node_id, bag in bags_b.items():
             merged_bag = merge_intermediate_bags(combined_bags[node_id], bag)
             combined_bags[node_id] = merged_bag
 
+        return combined_bags
+
+    def nullify_hidden_values(self, bags: IntermediateBags) -> IntermediateBags:
+        """
+        Sets the hidden values of the bags to 0.
+        Necessary between two multi-modal steps, as ending the multi-modal step
+        is equivalent to dismounting.
+        """
         # nullify hidden_values
         # this is done to reset the time spent on a bicycle as ending the
         # bicycle step is equivalent to dismounting
-        for bag in combined_bags.values():
+        for bag in bags.values():
             for label in bag:
                 label.hidden_values = []
-
-        return combined_bags
+        return bags
 
 
 def prefix_id(
@@ -355,14 +455,14 @@ def mark_bicycles(nodes: pd.DataFrame) -> pd.DataFrame:
 
 
 def create_multi_modal_graph(
-    nodes: pd.DataFrame, edges: pd.DataFrame
+    multi_modal_nodes: pd.DataFrame, multi_modaledges: pd.DataFrame
 ) -> dict[str, pd.DataFrame]:
-    edges = add_reverse_edges(edges)
+    multi_modaledges = add_reverse_edges(multi_modaledges)
 
-    walking_nodes = nodes.copy()
-    bike_nodes = nodes.copy()
-    walking_edges = edges.copy()
-    bike_edges = edges.copy()
+    walking_nodes = multi_modal_nodes.copy()
+    bike_nodes = multi_modal_nodes.copy()
+    walking_edges = multi_modaledges.copy()
+    bike_edges = multi_modaledges.copy()
 
     walking_nodes = prefix_id(walking_nodes, "W", "id", save_old=True)
     bike_nodes = prefix_id(bike_nodes, "B", "id", save_old=True)
@@ -372,18 +472,18 @@ def create_multi_modal_graph(
     bike_edges = prefix_id(bike_edges, "B", "u")
     bike_edges = prefix_id(bike_edges, "B", "v")
 
-    transfer_edges = create_transfer_edges(nodes)
+    transfer_edges = create_transfer_edges(multi_modal_nodes)
 
     walking_edges = add_travel_time(walking_edges, AVG_WALKING_SPEED)
     bike_edges = add_travel_time(bike_edges, AVG_BIKING_SPEED)
 
     bike_edges["travel_time_bike"] = bike_edges["travel_time"]
 
-    edges = combine_edges(walking_edges, bike_edges, transfer_edges)
-    nodes = pd.concat([walking_nodes, bike_nodes])
+    multi_modaledges = combine_edges(walking_edges, bike_edges, transfer_edges)
+    multi_modal_nodes = pd.concat([walking_nodes, bike_nodes])
     return {
-        "nodes": nodes,
-        "edges": edges,
+        "multi_modal_nodes": multi_modal_nodes,
+        "multi_modal_edges": multi_modaledges,
         "walking_nodes": walking_nodes,
         "walking_edges": walking_edges,
     }
@@ -459,22 +559,26 @@ def add_single_modal_weights(edges: pd.DataFrame) -> pd.DataFrame:
 
 def reset_node_ids(
     nodes: pd.DataFrame, edges: pd.DataFrame
-) -> Tuple[pd.DataFrame, pd.DataFrame, dict[Any, int]]:
-    node_map = {}
+) -> Tuple[pd.DataFrame, pd.DataFrame, dict[str, int]]:
+    node_to_resetted_map = {}
     for i, node_id in enumerate(nodes.id.unique()):
-        node_map[node_id] = i
+        node_to_resetted_map[node_id] = i
 
     nodes["old_id"] = nodes["id"]
-    nodes["id"] = nodes["id"].map(node_map)
-    edges["u"] = edges["u"].map(node_map)
-    edges["v"] = edges["v"].map(node_map)
+    nodes["id"] = nodes["id"].map(node_to_resetted_map)
+    edges["u"] = edges["u"].map(node_to_resetted_map)
+    edges["v"] = edges["v"].map(node_to_resetted_map)
 
     total_na = edges.isna().sum().sum() + nodes.isna().sum().sum()
     if total_na > 0:
         raise ValueError(f"Found {total_na} NaNs in graph")
 
-    return nodes, edges, node_map
+    return nodes, edges, node_to_resetted_map
 
 
-def get_reverse_map(d: dict[Any, Any]) -> dict[Any, Any]:
+A = TypeVar("A")
+B = TypeVar("B")
+
+
+def get_reverse_map(d: dict[A, B]) -> dict[B, A]:
     return {v: k for k, v in d.items()}

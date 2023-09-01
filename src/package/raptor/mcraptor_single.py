@@ -47,7 +47,10 @@ class McRaptorSingle(Generic[L, S, T]):
             if stop_id not in bags:
                 bags[stop_id] = Bag()
                 n_missing_stops += 1
-        rlog.info(f"Added {n_missing_stops} missing stops to bags ({n_missing_stops / len(self.dq.stop_id_set) * 100:.2f}%)")
+        if n_missing_stops > 0:
+            rlog.warning(
+                f"Added {n_missing_stops} missing stops to bags ({n_missing_stops / len(self.dq.stop_id_set) * 100:.2f}%)"
+            )
 
         output_bags = deepcopy(bags)
 

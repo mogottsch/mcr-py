@@ -21,6 +21,7 @@ dependencies:
   - rich
   - maturin
   - polars
+  - pyarrow
   # optional
   - folium
   # environment

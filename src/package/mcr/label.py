@@ -9,12 +9,12 @@ class IntermediateLabel:
         values: list[int],
         hidden_values: list[int],
         path: list[int | str],
-        node_id: int,  # int for osm nodes, str for gtfs stops
+        osm_node_id: int,
     ):
         self.values = values
         self.hidden_values = hidden_values
         self.path = path
-        self.node_id = node_id
+        self.node_id = osm_node_id
 
     def __str__(self):
         return f"IntermediateLabel(values={self.values}, hidden_values={self.hidden_values}, path={self.path}, node_id={self.node_id})"
@@ -31,15 +31,16 @@ class IntermediateLabel:
             values=self.values,
             hidden_values=self.hidden_values,
             path=self.path.copy(),
-            node_id=node_id,
+            osm_node_id=node_id,
         )
 
-    def to_mlc_label(self, new_node_id: int) -> IntermediateLabel:
+    def to_mlc_label(self, new_node_id: int, with_hidden_values: bool = True) -> IntermediateLabel:
         return IntermediateLabel(
             values=self.values,
-            hidden_values=[0],
+            hidden_values=[0] if with_hidden_values else [],
+            # hidden_values=self.hidden_values,
             path=self.path,
-            node_id=new_node_id,
+            osm_node_id=new_node_id,
         )
 
     def to_mc_raptor_label(
@@ -105,7 +106,7 @@ class McRAPTORLabel(McRAPTORBaseLabel):
                 convert_mc_raptor_path_element(path_element)
                 for path_element in self.path
             ],
-            node_id=node_id,
+            osm_node_id=node_id,
         )
 
 

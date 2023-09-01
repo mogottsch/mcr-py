@@ -82,7 +82,6 @@ python src/main.py raptor \
 ### same with cologne
 
 ```
-python src/main.py gtfs list --country-code de
 python src/main.py gtfs download 777 ./data/vrs.zip
 python src/main.py gtfs crop ./data/vrs.zip ./data/cologne_gtfs.zip \
     --lat-min=50.888361 \
@@ -93,7 +92,6 @@ python src/main.py gtfs crop ./data/vrs.zip ./data/cologne_gtfs.zip \
     --time-end 24.06.2023-00:00:00
 python src/main.py gtfs clean  ./data/cologne_gtfs.zip ./data/cleaned/
 python src/main.py build-structures ./data/cleaned/ ./data/structs.pkl
-python src/main.py osm list --selector "cities"
 python src/main.py generate-footpaths \
     --stops ./data/cleaned/stops.csv \
     --city-id Koeln \
