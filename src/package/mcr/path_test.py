@@ -1,57 +1,71 @@
 import pytest
 from package.mcr.label import IntermediateLabel
 
-from package.mcr.path import PathManager
+from package.mcr.path import PathManager, PathType, Path, GTFSPath
+
+import pytest
 
 
-# Setting up a fixture for the PathManager instance
 @pytest.fixture
-def pm():
+def path_manager() -> PathManager:
     return PathManager()
 
 
-def test_add_path(pm):
-    path_id1 = pm._add_path([1, 2, 3])
-    path_id2 = pm._add_path(["a", "b", "c"])
-
-    assert pm.paths[0] == [1, 2, 3]
-    assert pm.paths[1] == ["a", "b", "c"]
-    assert path_id1 == 0
-    assert path_id2 == 1
+def test_path_manager_initialization(path_manager: PathManager) -> None:
+    assert path_manager.path_id_counter == 0
+    assert path_manager.paths == {}
 
 
-def test_extract_path_from_label(pm):
-    label = IntermediateLabel([10, 20], [30, 40], [1, 2, 3, "a", "b"], 99)
-    path_id = pm.extract_path_from_label(label)
+def test_path_manager_add_path(path_manager: PathManager) -> None:
+    path_id = path_manager._add_path(PathType.WALKING, [1, 2, 3])
+    assert path_id == 0
+    assert path_manager.path_id_counter == 1
+    assert path_manager.paths[0].path_type == PathType.WALKING
+    assert path_manager.paths[0].path == [1, 2, 3]
+
+
+def test_extract_all_paths_from_bags(path_manager: PathManager) -> None:
+    il1 = IntermediateLabel([1, 1], [1, 1], [1, "a"], 1)
+    il2 = IntermediateLabel([2, 2], [2, 2], [2, "b"], 2)
+    bags = {1: [il1], 2: [il2]}
+
+    path_manager.extract_all_paths_from_bags(bags, PathType.WALKING)
+
+    assert path_manager.paths[0].path_type == PathType.WALKING
+    assert path_manager.paths[0].path == [1, "a"]
+    assert path_manager.paths[1].path_type == PathType.WALKING
+    assert path_manager.paths[1].path == [2, "b"]
+
+
+def test_extract_path_from_label(path_manager: PathManager) -> None:
+    il = IntermediateLabel([1, 1], [1, 1], [1, "a"], 1)
+
+    path_id = path_manager.extract_path_from_label(il, PathType.WALKING)
 
     assert path_id == 0
-    assert label.path == [0]
-    assert pm.paths[0] == [1, 2, 3, "a", "b"]
-
-    # Testing offset
-    label2 = IntermediateLabel([10, 20], [30, 40], [1, 2, "x", "y", 3], 99)
-    path_id2 = pm.extract_path_from_label(label2, 2)
-
-    assert path_id2 == 1
-    assert label2.path == [1, 2]
-    assert pm.paths[1] == ["x", "y", 3]
+    assert il.path == [0]
+    assert path_manager.paths[0].path_type == PathType.WALKING
+    assert path_manager.paths[0].path == [1, "a"]
 
 
-def test_reconstruct_path_for_label(pm):
-    label = IntermediateLabel([10, 20], [30, 40], [1, 2, 3, "a", "b"], 99)
-    pm.extract_path_from_label(label)
+def test_reconstruct_and_translate_path_for_label(path_manager: PathManager) -> None:
+    path_manager._add_path(PathType.WALKING, [1, "a"])
+    path_manager._add_path(PathType.PUBLIC_TRANSPORT, [1, "trip_1", 2])
 
-    reconstructed_path = pm.reconstruct_path_for_label(label)
-    assert reconstructed_path == [1, 2, 3, "a", "b"]
+    il = IntermediateLabel([1, 1], [1, 1], [0, 1], 1)
+    translator_map = {
+        PathType.WALKING: {1: "one", "a": "A"},
+        PathType.PUBLIC_TRANSPORT: {},
+    }
 
-    label2 = IntermediateLabel([10, 20], [30, 40], [1, 2, 3, "a", "b"], 99)
-    pm.extract_path_from_label(label2)
-    label3 = IntermediateLabel([10, 20], [30, 40], [1, 2, "x", "y", 3], 99)
-    pm.extract_path_from_label(label3, 2)
+    translated_path = path_manager.reconstruct_and_translate_path_for_label(
+        il, translator_map
+    )
 
-    label_combined = IntermediateLabel([10, 20], [30, 40], [0, 2], 99)
-    reconstructed_combined_path = pm.reconstruct_path_for_label(label_combined)
-
-    assert reconstructed_combined_path == [1, 2, 3, "a", "b", "x", "y"]
-
-
+    assert len(translated_path) == 2
+    assert isinstance(translated_path[0], Path)
+    assert translated_path[0].path == ["one", "A"]
+    assert isinstance(translated_path[1], GTFSPath)
+    assert translated_path[1].start_stop_id == 1
+    assert translated_path[1].trip_id == "trip_1"
+    assert translated_path[1].end_stop_id == 2
