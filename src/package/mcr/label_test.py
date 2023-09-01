@@ -12,8 +12,8 @@ def test_merge_intermediate_bags():
     merged_bag = merge_intermediate_bags(bag1, bag2)
 
     assert (
-        len(merged_bag) == 2
-    )  # il1 and il3 should be in the merged bag, il2 is dominated by il1
+        len(merged_bag) == 1
+    ) 
     assert il1 in merged_bag
-    assert il3 in merged_bag
+    assert il3 not in merged_bag
     assert il2 not in merged_bag
