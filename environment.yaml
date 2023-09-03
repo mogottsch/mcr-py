@@ -26,3 +26,6 @@ dependencies:
   - folium
   # environment
   - pytest
+  - h3
+  - h3py
+  - scipy
