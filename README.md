@@ -127,3 +127,24 @@ python src/main.py gtfs crop ./data/vrs.zip ./data/cologne_gtfs.zip \
     --time-start 23.06.2023-00:00:00 \
     --time-end 24.06.2023-00:00:00
 ```
+
+## Running MCR
+
+```
+python src/main.py gtfs download 777 ./data/vrs.zip
+python src/main.py gtfs crop ./data/vrs.zip ./data/cologne_gtfs.zip \
+    --lat-min=50.888361 \
+    --lat-max=50.988361 \
+    --lon-min=6.889974 \
+    --lon-max=6.999974 \
+    --time-start 23.06.2023-00:00:00 \
+    --time-end 24.06.2023-00:00:00
+python src/main.py gtfs clean  ./data/cologne_gtfs.zip ./data/cleaned/
+python src/main.py build-structures ./data/cleaned/ ./data/structs.pkl
+python src/main.py mcr --stops="data/cleaned/stops.csv" --city-id="Koeln" \
+    --structs="data/structs.pkl" \
+    --start-node-id=394001227 \
+    --start-time=08:00:00 \
+    --max-transfers=2 \
+    --output=data/bags.pkl
+```

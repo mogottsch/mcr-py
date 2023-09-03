@@ -1,4 +1,3 @@
-use log::info;
 use std::collections::{HashMap, HashSet};
 
 use mlc::{
@@ -71,9 +70,13 @@ pub fn run_mlc_with_node_and_time(
     graph_cache: &GraphCache,
     start_node_id: usize,
     time: usize,
+    disable_paths: Option<bool>,
 ) -> PyBags {
     let g = graph_cache.graph.as_ref().unwrap();
     let mut mlc = MLC::new(g).unwrap();
+    if let Some(disable_paths) = disable_paths {
+        mlc.set_disable_paths(disable_paths);
+    }
     mlc.set_start_node_with_time(start_node_id, time);
     let bags = mlc.run().unwrap();
 
@@ -109,6 +112,7 @@ pub fn run_mlc_with_bags(
     graph_cache: &GraphCache,
     bags: HashMap<usize, Vec<&PyAny>>,
     update_label_func: Option<String>,
+    disable_paths: Option<bool>,
 ) -> PyBags {
     // convert the PyAny's to Labels
     let mut converted_bags: Bags<usize> = HashMap::new();
@@ -148,6 +152,9 @@ pub fn run_mlc_with_bags(
 
     let g = graph_cache.graph.as_ref().unwrap();
     let mut mlc = MLC::new(g).unwrap();
+    if let Some(disable_paths) = disable_paths {
+        mlc.set_disable_paths(disable_paths);
+    }
     let update_label_func = update_label_func.unwrap_or_else(|| "none".to_string());
     let update_label_func = UpdateLabelFunc::from_str(&update_label_func).get_func();
     if let Some(func) = update_label_func {

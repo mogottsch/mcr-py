@@ -12,6 +12,22 @@ from package.logger import Timed
 def run(
     stops: Annotated[str, typer.Option(help=STOPS_HELP)],
     structs: Annotated[str, typer.Option(help=STRUCTS_HELP)],
+    start_node_id: Annotated[
+        int,
+        typer.Option(help="OSM node ID of the start node."),
+    ],
+    start_time: Annotated[
+        str,
+        typer.Option(
+            help="Start time in the format 'HH:MM:SS'.",
+        ),
+    ],
+    output: Annotated[
+        str,
+        typer.Option(
+            help="Output file path.",
+        ),
+    ],
     city_id: Annotated[
         str,
         typer.Option(
@@ -19,6 +35,18 @@ def run(
         ),
     ] = "",
     osm: Annotated[str, typer.Option(help=OSM_HELP)] = "",
+    max_transfers: Annotated[
+        int,
+        typer.Option(
+            help="Maximum number of transfers, where a transfer is a public transport ride or a bike ride.",
+        ),
+    ] = 2,
+    disable_paths: Annotated[
+        bool,
+        typer.Option(
+            help="Disable path computation. Speeds up computation, but it will be impossible to retrace the path of a label.",
+        ),
+    ] = False,
 ):
     validate_flags(
         stops,
@@ -28,13 +56,8 @@ def run(
     )
 
     with Timed.info("Running MCR"):
-        mcr_runner = mcr.MCR(
-            stops,
-            structs,
-            city_id,
-            osm,
-        )
-        mcr_runner.run()
+        mcr_runner = mcr.MCR(stops, structs, city_id, osm, disable_paths=disable_paths)
+        mcr_runner.run(start_node_id, start_time, max_transfers, output)
 
 
 def validate_flags(

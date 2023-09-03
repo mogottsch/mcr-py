@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Any, Tuple, TypeVar
+from typing import Any, Optional, Tuple, TypeVar
 
 import pandas as pd
 import geopandas as gpd
@@ -10,7 +10,12 @@ from mcr_py import GraphCache
 import pyrosm
 from package import storage, strtime
 from package.logger import Timed, rlog
-from package.mcr.label import IntermediateLabel, McRAPTORLabel, merge_intermediate_bags
+from package.mcr.label import (
+    IntermediateLabel,
+    McRAPTORLabel,
+    McRAPTORLabelWithPath,
+    merge_intermediate_bags,
+)
 from package.mcr.path import PathManager, PathType
 from package.osm import osm, graph
 from package.raptor.mcraptor_single import McRaptorSingle
@@ -38,13 +43,17 @@ class MCR:
         structs_path: str,
         city_id: str = "",
         osm_path: str = "",
+        disable_paths: bool = False,
     ):
         self.structs_path = structs_path
         self.stops_path = stops_path
         self.city_id = city_id
         self.osm_path = osm_path
 
-        self.path_manager = PathManager()
+        self.disable_paths = disable_paths
+        self.path_manager: Optional[PathManager] = None
+        if not disable_paths:
+            self.path_manager = PathManager()
 
         self.structs_dict = storage.read_any_dict(structs_path)
         with Timed.info("Reading stops"):
@@ -107,8 +116,10 @@ class MCR:
 
             raw_edges = multi_modal_edges[
                 ["u", "v", "weights", "hidden_weights"]
-            ].to_dict("records")
-            raw_walking_edges = walking_edges[["u", "v", "weights"]].to_dict("records")
+            ].to_dict(
+                "records"  # type: ignore
+            )
+            raw_walking_edges = walking_edges[["u", "v", "weights"]].to_dict("records")  # type: ignore
 
         with Timed.info("Creating graph cache"):
             self.graph_cache = GraphCache()
@@ -116,43 +127,45 @@ class MCR:
             self.walking_graph_cache = GraphCache()
             self.walking_graph_cache.set_graph(raw_walking_edges)
 
-    def run(self):
-        start_node_id = 295101994
-        start_time_in_seconds = strtime.str_time_to_seconds("08:00:00")
+    def run(
+        self, start_node_id: int, start_time: str, max_transfers: int, output_path: str
+    ):
+        start_time_in_seconds = strtime.str_time_to_seconds(start_time)
 
-        ### ---- DIJKSTRA STEP START ---- ###
+        bags_i: dict[int, IntermediateBags] = {}
 
         with Timed.info("Running Dijkstra step"):
             walking_result_bags = mcr_py.run_mlc_with_node_and_time(
                 self.walking_graph_cache,
                 self.walking_node_to_resetted_map[f"W{start_node_id}"],
                 start_time_in_seconds,
+                disable_paths=self.disable_paths,
             )
 
         with Timed.info("Extracting dijkstra step bags"):
             walking_result_bags = self.convert_walking_bags(
                 walking_result_bags, add_zero_weight_to_values=True
             )
-            init_walking_result_bags = deepcopy(walking_result_bags)
+            bags_i[0] = walking_result_bags
+            # bags_i[0] = deepcopy(walking_result_bags)
 
-        n_osm_nodes = len(walking_result_bags)
-        rlog.debug(f"Found {n_osm_nodes} osm nodes in walking step")
-        ### --- BEGIN LOOP --- ###
+            n_osm_nodes = len(walking_result_bags)
+            rlog.debug(f"Found {n_osm_nodes} osm nodes in walking step")
 
-        for i in range(1, 3):
+        for i in range(1, max_transfers + 1):
             rlog.info(f"Running iteration {i}")
             offset = i * 2 - 1
 
             with Timed.info("Preparing input for bicycle step"):
                 bicycle_bags = self.prepare_bicycle_step_input(walking_result_bags)
                 assert len(bicycle_bags) > 0
-            # validation
-            for node_id in bicycle_bags.keys():
-                self.graph_cache.validate_node_id(node_id)
 
             with Timed.info("Running bicycle step"):
                 bicycle_result_bags = mcr_py.run_mlc_with_bags(
-                    self.graph_cache, bicycle_bags, update_label_func="next_bike_tariff"
+                    self.graph_cache,
+                    bicycle_bags,
+                    update_label_func="next_bike_tariff",
+                    disable_paths=self.disable_paths,
                 )
 
             with Timed.info("Extracting bicycle step bags"):
@@ -168,7 +181,9 @@ class MCR:
                 mc_raptor = McRaptorSingle(
                     self.structs_dict,
                     default_transfer_time=60,
-                    label_class=McRAPTORLabel,
+                    label_class=McRAPTORLabel
+                    if self.disable_paths
+                    else McRAPTORLabelWithPath,
                 )
                 mc_raptor_result_bags = mc_raptor.run(mc_raptor_bags)  # type: ignore
 
@@ -176,15 +191,15 @@ class MCR:
                 mc_raptor_result_bags = self.convert_mc_raptor_bags(
                     mc_raptor_result_bags, path_index_offset=offset
                 )
-                assert len(mc_raptor_result_bags) > 0  # this will eventually fail
+                if len(mc_raptor_result_bags) == 0:
+                    rlog.warn("No MCRAPTOR bags found - the area might be too small")
 
             with Timed.info("Merging bags"):
                 combined_bags = self.merge_bags(
                     bicycle_result_bags,
                     mc_raptor_result_bags,  # i am really unsure whether the input here has the same node ids type
                 )
-            # combined_bags = self.nullify_hidden_values(combined_bags)
-            assert len(combined_bags) == n_osm_nodes
+                assert len(combined_bags) == n_osm_nodes
 
             with Timed.info("Preparing input for walking step"):
                 walking_bags = self.prepare_walking_step_input(combined_bags)
@@ -193,6 +208,7 @@ class MCR:
                 walking_result_bags = mcr_py.run_mlc_with_bags(
                     self.walking_graph_cache,
                     walking_bags,
+                    disable_paths=self.disable_paths,
                 )
             with Timed.info("Extracting walking step bags"):
                 walking_result_bags = self.convert_walking_bags(
@@ -200,20 +216,24 @@ class MCR:
                 )
                 assert len(walking_result_bags) == n_osm_nodes
 
+            bags_i[i] = walking_result_bags
+            # bags_i[i] = deepcopy(walking_result_bags)
+
         storage.write_any_dict(
             {
-                "init_walking_result_bags": init_walking_result_bags,
-                "walking_result_bags": walking_result_bags,
+                "bags_i": bags_i,
                 "path_manager": self.path_manager,
-                "bicycle_result_bags": bicycle_result_bags,
-                "mc_raptor_result_bags": mc_raptor_result_bags,
-                "mc_raptor_bags": mc_raptor_bags,
-                "combined_bags": combined_bags,
-                "node_map": self.multi_modal_node_to_resetted_map,
-                "walking_node_map": self.walking_node_to_resetted_map,
+                "multi_modal_node_to_resetted_map": self.multi_modal_node_to_resetted_map,
+                "walking_node_to_resetted_map": self.walking_node_to_resetted_map,
                 "stops_df": self.stops_df,
+                # "init_walking_result_bags": init_walking_result_bags,
+                # "walking_result_bags": walking_result_bags,
+                # "bicycle_result_bags": bicycle_result_bags,
+                # "mc_raptor_result_bags": mc_raptor_result_bags,
+                # "mc_raptor_bags": mc_raptor_bags,
+                # "combined_bags": combined_bags,
             },
-            "/home/moritz/dev/uni/mcr-py/data/bags.pkl",  # type: ignore
+            output_path,
         )
 
     def convert_walking_bags(
@@ -244,11 +264,12 @@ class MCR:
             ),
             add_zero_weight_to_values=add_zero_weight_to_values,
         )
-        self.path_manager.extract_all_paths_from_bags(
-            converted_bags,
-            PathType.WALKING,
-            path_index_offset=path_index_offset,
-        )
+        if self.path_manager:
+            self.path_manager.extract_all_paths_from_bags(
+                converted_bags,
+                PathType.WALKING,
+                path_index_offset=path_index_offset,
+            )
         return converted_bags
 
     def convert_bicycle_bags(
@@ -281,11 +302,12 @@ class MCR:
                 self.resetted_to_multi_modal_node_map[node_id][1:]
             ),
         )
-        self.path_manager.extract_all_paths_from_bags(
-            bags,
-            PathType.CYCLING_WALKING,
-            path_index_offset=path_index_offset,
-        )
+        if self.path_manager:
+            self.path_manager.extract_all_paths_from_bags(
+                bags,
+                PathType.CYCLING_WALKING,
+                path_index_offset=path_index_offset,
+            )
         return bags
 
     def convert_mc_raptor_bags(
@@ -308,11 +330,12 @@ class MCR:
             mc_raptor_result_bags,
             min_path_length=path_index_offset + 1,
         )
-        self.path_manager.extract_all_paths_from_bags(
-            mc_raptor_result_bags,
-            PathType.PUBLIC_TRANSPORT,
-            path_index_offset=path_index_offset,
-        )
+        if self.path_manager:
+            self.path_manager.extract_all_paths_from_bags(
+                mc_raptor_result_bags,
+                PathType.PUBLIC_TRANSPORT,
+                path_index_offset=path_index_offset,
+            )
 
         return mc_raptor_result_bags
 
@@ -405,9 +428,10 @@ class MCR:
         Merges two bag dictionaries into one.
         Expects that bags_a has a bag for every node in bags_b.
         """
-        combined_bags = deepcopy(
-            bags_a
-        )  # remove deepcopy, if you are sure, that bicycle_result_bags is not used anymore
+        # combined_bags = deepcopy(
+        #     bags_a
+        # )  # remove deepcopy, if you are sure, that bicycle_result_bags is not used anymore
+        combined_bags = bags_a
         for node_id, bag in bags_b.items():
             merged_bag = merge_intermediate_bags(combined_bags[node_id], bag)
             combined_bags[node_id] = merged_bag
@@ -560,14 +584,14 @@ def add_single_modal_weights(edges: pd.DataFrame) -> pd.DataFrame:
 def reset_node_ids(
     nodes: pd.DataFrame, edges: pd.DataFrame
 ) -> Tuple[pd.DataFrame, pd.DataFrame, dict[str, int]]:
-    node_to_resetted_map = {}
+    node_to_resetted_map: dict[str, int] = {}
     for i, node_id in enumerate(nodes.id.unique()):
         node_to_resetted_map[node_id] = i
 
     nodes["old_id"] = nodes["id"]
-    nodes["id"] = nodes["id"].map(node_to_resetted_map)
-    edges["u"] = edges["u"].map(node_to_resetted_map)
-    edges["v"] = edges["v"].map(node_to_resetted_map)
+    nodes["id"] = nodes["id"].map(node_to_resetted_map)  # type: ignore
+    edges["u"] = edges["u"].map(node_to_resetted_map)  # type: ignore
+    edges["v"] = edges["v"].map(node_to_resetted_map)  # type: ignore
 
     total_na = edges.isna().sum().sum() + nodes.isna().sum().sum()
     if total_na > 0:

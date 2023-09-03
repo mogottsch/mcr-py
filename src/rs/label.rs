@@ -1,6 +1,6 @@
 use mlc::bag;
 
-const PRICE_INCREMENT_INTERVAL: u64 = 10; // minutes
+const PRICE_INCREMENT_INTERVAL: u64 = 30; // minutes
 
 #[allow(dead_code)]
 pub fn next_bike_tariff(

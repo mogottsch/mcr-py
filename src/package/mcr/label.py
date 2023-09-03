@@ -34,7 +34,9 @@ class IntermediateLabel:
             osm_node_id=node_id,
         )
 
-    def to_mlc_label(self, new_node_id: int, with_hidden_values: bool = True) -> IntermediateLabel:
+    def to_mlc_label(
+        self, new_node_id: int, with_hidden_values: bool = True
+    ) -> IntermediateLabel:
         return IntermediateLabel(
             values=self.values,
             hidden_values=[0] if with_hidden_values else [],
@@ -46,11 +48,17 @@ class IntermediateLabel:
     def to_mc_raptor_label(
         self, stop_id: str, null_cost: bool = False
     ) -> McRAPTORLabel:
+        if len(self.path) > 0:
+            return McRAPTORLabelWithPath(
+                time=self.values[0],
+                cost=0 if null_cost else self.values[1],
+                stop=stop_id,
+                path=self.path,
+            )
         return McRAPTORLabel(
             time=self.values[0],
             cost=0 if null_cost else self.values[1],
             stop=stop_id,
-            path=self.path,
         )
 
 
@@ -74,9 +82,8 @@ class McRAPTORLabel(McRAPTORBaseLabel):
     STOP_PREFIX = "STOP_"
     TRIP_PREFIX = "TRIP_"
 
-    def __init__(self, time: int, cost: int, stop: str, path: list[int | str]):
+    def __init__(self, time: int, cost: int, stop: str):
         super().__init__(time, stop)
-        self.path = path
         self.cost = cost
 
     def strictly_dominates(self, other: McRAPTORLabel) -> bool:
@@ -85,29 +92,50 @@ class McRAPTORLabel(McRAPTORBaseLabel):
     def update_along_trip(self, arrival_time: int, stop_id: str, trip_id: str):
         super().update_along_trip(arrival_time, stop_id, trip_id)
         trip_id = self.TRIP_PREFIX + trip_id
-        if self.path[-1] != trip_id:
-            self.path.append(trip_id)
 
     def update_along_footpath(self, walking_time: int, stop_id: str):
         raise NotImplementedError("This label should not be updated along a footpath")
 
     def update_before_route_bag_merge(self, departure_time: int, stop_id: str):
         super().update_before_route_bag_merge(departure_time, stop_id)
-        self.path.append(self.STOP_PREFIX + stop_id)
 
     def update_before_stop_bag_merge(self, stop_id: str):
-        self.path.append(self.STOP_PREFIX + stop_id)
+        pass
 
     def to_intermediate_label(self, node_id: int) -> IntermediateLabel:
         return IntermediateLabel(
             values=[self.arrival_time, self.cost],
             hidden_values=[],
-            path=[
-                convert_mc_raptor_path_element(path_element)
-                for path_element in self.path
-            ],
+            path=[],
             osm_node_id=node_id,
         )
+
+
+class McRAPTORLabelWithPath(McRAPTORLabel):
+    def __init__(self, time: int, cost: int, stop: str, path: list[int | str]):
+        super().__init__(time, cost, stop)
+        self.path = path
+
+    def update_along_trip(self, arrival_time: int, stop_id: str, trip_id: str):
+        super().update_along_trip(arrival_time, stop_id, trip_id)
+        trip_id = self.TRIP_PREFIX + trip_id
+        if self.path[-1] != trip_id:
+            self.path.append(trip_id)
+
+    def update_before_route_bag_merge(self, departure_time: int, stop_id: str):
+        super().update_before_route_bag_merge(departure_time, stop_id)
+        self.path.append(self.STOP_PREFIX + stop_id)
+
+    def update_before_stop_bag_merge(self, stop_id: str):
+        super().update_before_stop_bag_merge(stop_id)
+        self.path.append(self.STOP_PREFIX + stop_id)
+
+    def to_intermediate_label(self, node_id: int) -> IntermediateLabel:
+        intermediate_label = super().to_intermediate_label(node_id)
+        intermediate_label.path = [
+            convert_mc_raptor_path_element(path_element) for path_element in self.path
+        ]
+        return intermediate_label
 
 
 def convert_mc_raptor_path_element(path_element: int | str) -> int | str:
