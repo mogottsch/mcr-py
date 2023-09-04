@@ -56,7 +56,9 @@ def run(
     )
 
     with Timed.info("Running MCR"):
-        mcr_runner = mcr.MCR(stops, structs, city_id, osm, disable_paths=disable_paths)
+        mcr_runner = mcr.MCR.from_geo_data_inputs(
+            stops, structs, city_id, osm, disable_paths=disable_paths
+        )
         mcr_runner.run(start_node_id, start_time, max_transfers, output)
 
 
