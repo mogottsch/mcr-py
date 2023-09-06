@@ -38,6 +38,10 @@ class MCRGeoData:
                 osm_edges,
             ) = osm.get_graph_for_city_cropped_to_stops(osm_reader, self.stops_df)
             nxgraph = graph.create_nx_graph(osm_reader, osm_nodes, osm_edges)
+            nxgraph, osm_nodes, osm_edges = graph.crop_graph_to_largest_component(
+                nxgraph, osm_nodes, osm_edges
+            )
+
 
             osm_nodes: pd.DataFrame = osm_nodes[["id"]]  # type: ignore
             osm_edges: pd.DataFrame = osm_edges[["u", "v", "length"]]  # type: ignore

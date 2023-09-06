@@ -1,5 +1,5 @@
 import multiprocessing
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 import psutil
 import time
 import os
@@ -30,8 +30,15 @@ class MCR5:
         start_time: str,
         output_dir: str,
         max_transfers: int = 2,
-    ):
+    ) -> list[tuple[str, Exception]]:
+        """
+        Run a MCR5 analysis on the underlying geo data for each location mapping.
+        Returns a list of tuples, which represent errors that occurred during the analysis.
+        The first element of the tuple is the h3 cell, the second element is the exception.
+        """
         processes = []
+        errors = Queue()
+
         for location_mapping in location_mappings:
             h3_cell = location_mapping.h3_cell
             osm_node_id = location_mapping.osm_node_id
@@ -46,6 +53,7 @@ class MCR5:
             p = Process(
                 target=self.run_mcr,
                 args=(
+                    errors,
                     h3_cell,
                     osm_node_id,
                     self.geo_data,
@@ -67,8 +75,12 @@ class MCR5:
 
         print("All processes finished.                                  ")
 
+        errors = [errors.get() for _ in range(errors.qsize())]
+        return errors
+
     def run_mcr(
         self,
+        errors: Queue,
         h3_cell: str,
         osm_node_id: int,
         mcr_geo_data: MCRGeoData,
@@ -81,12 +93,26 @@ class MCR5:
         )
         output = os.path.join(output_dir, f"{h3_cell}.feather")
 
-        mcr_runner.run(
-            start_node_id=osm_node_id,
-            start_time=start_time,
-            max_transfers=max_transfers,
-            output_path=output,
-        )
+        try:
+            mcr_runner.run(
+                start_node_id=osm_node_id,
+                start_time=start_time,
+                max_transfers=max_transfers,
+                output_path=output,
+            )
+        except Exception as e:
+            errors.put(
+                (
+                    {
+                        "h3_cell": h3_cell,
+                        "osm_node_id": osm_node_id,
+                        "start_time": start_time,
+                        "max_transfers": max_transfers,
+                        "output_path": output,
+                    },
+                    e,
+                )
+            )
 
     def print_status(
         self, processes: list[Process], location_mappings: list[H3OSMLocationMapping]

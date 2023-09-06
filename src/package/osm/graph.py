@@ -7,7 +7,22 @@ import osmnx as ox
 def create_nx_graph(
     osm: pyrosm.OSM, nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame
 ) -> nx.Graph:
-    return osm.to_graph(nodes, edges, graph_type="networkx", network_type="walking")  # type: ignore
+    graph: nx.Graph = osm.to_graph(nodes, edges, graph_type="networkx", network_type="walking")  # type: ignore
+
+    return graph
+
+
+def crop_graph_to_largest_component(
+    graph: nx.Graph, nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame
+) -> tuple[nx.Graph, gpd.GeoDataFrame, gpd.GeoDataFrame]:
+    weakly_connected_components = nx.weakly_connected_components(graph)
+    largest_component = max(weakly_connected_components, key=len)
+
+    graph = graph.subgraph(largest_component).copy()
+
+    nodes = nodes[nodes["id"].isin(graph.nodes)]  # type: ignore
+    edges = edges[edges["u"].isin(graph.nodes) & edges["v"].isin(graph.nodes)]  # type: ignore
+    return graph, nodes, edges
 
 
 def add_nearest_node_to_stops(

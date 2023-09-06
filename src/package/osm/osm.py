@@ -10,6 +10,7 @@ from pyrosm.data import get_data
 from package import storage, cache
 from package.osm import osm, key as osm_key
 from package.logger import Timed, rlog
+from package.osm import graph
 
 
 from package.logger import rlog
@@ -70,6 +71,17 @@ def get_graph_for_city_cropped_to_stops(
 
     with Timed.info("Cropping OSM network to stops"):
         nodes, edges = osm.crop_to_stops(nodes, edges, stops_df)
+
+    with Timed.info("Ensuring graph is connected"):
+        nxgraph = graph.create_nx_graph(osm_reader, nodes, edges)
+        n_nodes_before = len(nodes)
+        nxgraph, nodes, edges = graph.crop_graph_to_largest_component(
+            nxgraph, nodes, edges
+        )
+        n_nodes_after = len(nodes)
+        rlog.info(
+            f"Removed {n_nodes_before - n_nodes_after} nodes from OSM network to ensure connectivity ({n_nodes_before-n_nodes_after/n_nodes_before*100:.2f}%)"
+        )
 
     with Timed.info("Caching OSM network"):
         cache.cache_gdf(nodes, hash, osm_key.NODES_FILE_IDENTIFIER)
