@@ -39,7 +39,7 @@ def get_h3_cells_for_bbox(
 
 
 def plot_h3_cells_on_folium(
-    h3_cells: set[str] | dict[str, int], folium_map: folium.Map
+    h3_cells: set[str] | dict[str, int], folium_map: folium.Map, reverse_color: bool = False, popup_callback: callable = None
 ) -> None:
     is_dict = isinstance(h3_cells, dict)
     maximum = max(h3_cells.values()) if is_dict else 0
@@ -52,6 +52,14 @@ def plot_h3_cells_on_folium(
         if is_dict:
             count = h3_cells[h3_cell]
             opacity = count / maximum
+            if reverse_color:
+                opacity = 1 - opacity
+
+        popup = None
+        if popup_callback:
+            popup = popup_callback(count)
+        else:
+            popup = f"Count: {count}" if count else None,
 
         folium.Polygon(
             locations=geo_boundary,
@@ -60,5 +68,5 @@ def plot_h3_cells_on_folium(
             opacity=1,
             fill_color="blue",
             fill_opacity=opacity,
-            popup=f"Count: {count}" if count else None,
+            popup=popup,
         ).add_to(folium_map)

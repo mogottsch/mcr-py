@@ -11,6 +11,7 @@ from package import storage, cache
 from package.osm import osm, key as osm_key
 from package.logger import Timed, rlog
 from package.osm import graph
+from rich import print
 
 
 from package.logger import rlog
@@ -24,6 +25,10 @@ def list_available(selector: str):
     if selector != "":
         root_name += f" for {selector}"
     console.print_tree_from_any(get_available(selector), root_name=root_name)
+    print(
+        f"[i] Use one of the names listed above as value for `--city-id`.[/i]"
+    )
+
 
 
 def get_available(

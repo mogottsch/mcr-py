@@ -35,6 +35,7 @@ RELEVANT_COLUMNS = [
     COL_DOWNLOAD_URL,
     COL_AUTH_TYPE,
 ]
+ID_COLOR = "magenta"
 
 
 def list_catalog(country_code: str, subdivision_name: str, municipality: str):
@@ -43,10 +44,15 @@ def list_catalog(country_code: str, subdivision_name: str, municipality: str):
     catalog = filter_catalog(catalog, country_code, subdivision_name, municipality)
 
     print_catalog(catalog)
+    print(f"Total: [bold]{len(catalog)}[/bold]\n")
+    print(
+        f"[i] Use [bold]{key.GTFS_UPPER_COMMAND_NAME} {key.GTFS_DOWNLOAD_COMMAND_NAME} <[{ID_COLOR}]ID[/]>[/bold] to download a GTFS feed."
+    )
 
 
 def get_catalog() -> pd.DataFrame:
     if not os.path.exists(CATALOG_PATH):
+        rlog.info("Downloading GTFS catalog...")
         download_catalog()
 
     catalog = pd.read_csv(CATALOG_PATH)
@@ -107,7 +113,6 @@ def print_catalog(catalog: pd.DataFrame):
         int(catalog[COL_MUNICIPALITY].str.len().max()), len("Municipality")
     )
 
-    ID_COLOR = "magenta"
     table.add_column("ID", style=ID_COLOR, width=index_max_length)
     table.add_column("Code", style="cyan", width=country_code_max_length)
     table.add_column("Subdivision", width=subdivision_max_length)
@@ -125,10 +130,6 @@ def print_catalog(catalog: pd.DataFrame):
 
     console = Console()
     console.print(table)
-    print(f"Total: [bold]{len(catalog)}[/bold]\n")
-    print(
-        f"[i] Use [bold]{key.GTFS_UPPER_COMMAND_NAME} {key.GTFS_DOWNLOAD_COMMAND_NAME} <[{ID_COLOR}]ID[/]>[/bold] to download a GTFS feed."
-    )
 
 
 def format_value(value: Any) -> str:
