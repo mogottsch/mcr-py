@@ -6,7 +6,10 @@ use mlc::{
 };
 use pyo3::{prelude::*, types::PyList};
 
-use super::{graph_cache::GraphCache, label::next_bike_tariff};
+use super::{
+    graph_cache::GraphCache,
+    label::{next_bike_tariff, next_bike_without_tariff},
+};
 
 pub struct PyBags(Bags<usize>);
 
@@ -86,6 +89,7 @@ pub fn run_mlc_with_node_and_time(
 #[derive(Debug)]
 enum UpdateLabelFunc {
     NextBikeTariff,
+    NextBikeNoTariff,
     None,
 }
 
@@ -93,6 +97,7 @@ impl UpdateLabelFunc {
     fn from_str(func_name: &str) -> Self {
         match func_name {
             "next_bike_tariff" => UpdateLabelFunc::NextBikeTariff,
+            "next_bike_no_tariff" => UpdateLabelFunc::NextBikeNoTariff,
             "none" => UpdateLabelFunc::None,
             _ => panic!("Unknown update label function: {}", func_name),
         }
@@ -101,6 +106,7 @@ impl UpdateLabelFunc {
     fn get_func(&self) -> Option<fn(&Label<usize>, &Label<usize>) -> Label<usize>> {
         match self {
             UpdateLabelFunc::NextBikeTariff => Some(next_bike_tariff),
+            UpdateLabelFunc::NextBikeNoTariff => Some(next_bike_without_tariff),
             UpdateLabelFunc::None => None,
         }
     }

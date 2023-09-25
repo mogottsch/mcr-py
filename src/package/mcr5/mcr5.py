@@ -1,5 +1,6 @@
 import multiprocessing
 from multiprocessing import Process, Queue
+import pickle
 import psutil
 import time
 import os
@@ -37,7 +38,12 @@ class MCR5:
         The first element of the tuple is the h3 cell, the second element is the exception.
         """
         processes = []
-        errors = Queue()
+        errors = Queue(maxsize=len(location_mappings))
+
+        p_id_hex_id_map = {}
+
+        # ensure ouptput directory exists
+        os.makedirs(output_dir, exist_ok=True)
 
         for location_mapping in location_mappings:
             h3_cell = location_mapping.h3_cell
@@ -47,8 +53,13 @@ class MCR5:
                 self.get_active_process_count(processes) >= self.max_processes
                 or get_available_memory() < self.min_free_memory
             ):
+                if errors.full():
+                    raise Exception(
+                        "Error queue is full."
+                    )
                 self.print_status(processes, location_mappings)
                 time.sleep(1)
+
 
             p = Process(
                 target=self.run_mcr,
@@ -65,6 +76,7 @@ class MCR5:
 
             p.start()
             processes.append(p)
+            p_id_hex_id_map[p.pid] = h3_cell
 
         while self.get_active_process_count(processes) > 0:
             self.print_status(processes, location_mappings)
@@ -76,6 +88,11 @@ class MCR5:
         print("All processes finished.                                  ")
 
         errors = [errors.get() for _ in range(errors.qsize())]
+
+        with open(os.path.join(output_dir, "errors.pkl"), "wb") as f:
+            pickle.dump(errors, f)
+
+
         return errors
 
     def run_mcr(
@@ -89,7 +106,9 @@ class MCR5:
         output_dir: str,
     ) -> None:
         mcr_runner = MCR(
-            mcr_geo_data, disable_paths=True, output_format=OutputFormat.DF_FEATHER
+            mcr_geo_data,
+            disable_paths=True,
+            output_format=OutputFormat.DF_FEATHER,
         )
         output = os.path.join(output_dir, f"{h3_cell}.feather")
 
@@ -118,12 +137,13 @@ class MCR5:
         self, processes: list[Process], location_mappings: list[H3OSMLocationMapping]
     ):
         available_memory = pretty_bytes(get_available_memory())
-        active_processes = self.get_active_process_count(processes)
+        active_processes_count = self.get_active_process_count(processes)
+        
         started_processes = len(processes)
         total_processes = len(location_mappings)
 
         print(
-            f"Available memory: {available_memory} | active: {active_processes} | started: {started_processes}/{total_processes}        ",
+            f"Available memory: {available_memory} | active: {active_processes_count} | started: {started_processes}/{total_processes}        ",
             end="\r",
         )
 

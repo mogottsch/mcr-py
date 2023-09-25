@@ -7,6 +7,7 @@ from command.footpaths import CITY_ID_HELP, OSM_HELP, STOPS_HELP
 from command.raptor import STRUCTS_HELP
 from package.mcr import mcr
 from package.logger import Timed
+from package.mcr.output import OutputFormat
 
 
 def run(
@@ -47,6 +48,14 @@ def run(
             help="Disable path computation. Speeds up computation, but it will be impossible to retrace the path of a label.",
         ),
     ] = False,
+    bicycle_price_function: Annotated[
+        str,
+        typer.Option(),
+    ] = "next_bike_no_tariff",
+    output_format: Annotated[
+        OutputFormat,
+        typer.Option()
+    ] = OutputFormat.CLASS_PICKLE,
 ):
     validate_flags(
         stops,
@@ -57,7 +66,7 @@ def run(
 
     with Timed.info("Running MCR"):
         mcr_runner = mcr.MCR.from_geo_data_inputs(
-            stops, structs, city_id, osm, disable_paths=disable_paths
+            stops, structs, city_id, osm, disable_paths=disable_paths, bicycle_price_function=bicycle_price_function, output_format=output_format
         )
         mcr_runner.run(start_node_id, start_time, max_transfers, output)
 

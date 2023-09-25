@@ -36,11 +36,13 @@ class MCR:
         mcr_geo_data: MCRGeoData,
         disable_paths: bool = False,
         output_format: OutputFormat = OutputFormat.CLASS_PICKLE,
+        bicycle_price_function: str = "next_bike_no_tariff",
     ):
         self.geo_data = mcr_geo_data
         self.disable_paths = disable_paths
         self.path_manager: Optional[PathManager] = None
         self.output_format = output_format
+        self.bicycle_price_function = bicycle_price_function
         if not disable_paths:
             self.path_manager = PathManager()
 
@@ -52,9 +54,10 @@ class MCR:
         osm_path: str = "",
         disable_paths: bool = False,
         output_format: OutputFormat = OutputFormat.CLASS_PICKLE,
+        bicycle_price_function: str = "next_bike_no_tariff",
     ):
         mcr_geo_data = MCRGeoData(stops_path, structs_path, city_id, osm_path)
-        return MCR(mcr_geo_data, disable_paths)
+        return MCR(mcr_geo_data, disable_paths, output_format, bicycle_price_function)
 
     def run(
         self, start_node_id: int, start_time: str, max_transfers: int, output_path: str
@@ -93,7 +96,7 @@ class MCR:
                 bicycle_result_bags = mcr_py.run_mlc_with_bags(
                     self.geo_data.graph_cache,
                     bicycle_bags,
-                    update_label_func="next_bike_tariff",
+                    update_label_func=self.bicycle_price_function,
                     disable_paths=self.disable_paths,
                 )
 
