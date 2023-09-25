@@ -55,7 +55,7 @@ def run(
     output_format: Annotated[
         OutputFormat,
         typer.Option()
-    ] = OutputFormat.CLASS_PICKLE,
+    ] = OutputFormat.CLASS_PICKLE.value, # type: ignore
 ):
     validate_flags(
         stops,

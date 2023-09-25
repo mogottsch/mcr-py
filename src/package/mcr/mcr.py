@@ -66,6 +66,8 @@ class MCR:
 
         bags_i: dict[int, IntermediateBags] = {}
 
+        rlog.debug(f"Starting MCR with config: {self.__dict__}")
+
         with Timed.info("Running Dijkstra step"):
             walking_result_bags = mcr_py.run_mlc_with_node_and_time(
                 self.geo_data.walking_graph_cache,

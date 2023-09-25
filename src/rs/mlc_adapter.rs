@@ -74,11 +74,17 @@ pub fn run_mlc_with_node_and_time(
     start_node_id: usize,
     time: usize,
     disable_paths: Option<bool>,
+    update_label_func: Option<String>,
 ) -> PyBags {
     let g = graph_cache.graph.as_ref().unwrap();
     let mut mlc = MLC::new(g).unwrap();
     if let Some(disable_paths) = disable_paths {
         mlc.set_disable_paths(disable_paths);
+    }
+    let update_label_func = update_label_func.unwrap_or_else(|| "none".to_string());
+    let update_label_func = UpdateLabelFunc::from_str(&update_label_func).get_func();
+    if let Some(func) = update_label_func {
+        mlc.set_update_label_func(func);
     }
     mlc.set_start_node_with_time(start_node_id, time);
     let bags = mlc.run().unwrap();

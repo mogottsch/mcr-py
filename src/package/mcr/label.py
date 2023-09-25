@@ -79,9 +79,6 @@ def merge_intermediate_bags(
 
 
 class McRAPTORLabel(McRAPTORBaseLabel):
-    STOP_PREFIX = "STOP_"
-    TRIP_PREFIX = "TRIP_"
-
     def __init__(self, time: int, cost: int, stop: str):
         super().__init__(time, stop)
         self.cost = cost
@@ -91,7 +88,6 @@ class McRAPTORLabel(McRAPTORBaseLabel):
 
     def update_along_trip(self, arrival_time: int, stop_id: str, trip_id: str):
         super().update_along_trip(arrival_time, stop_id, trip_id)
-        trip_id = self.TRIP_PREFIX + trip_id
 
     def update_along_footpath(self, walking_time: int, stop_id: str):
         raise NotImplementedError("This label should not be updated along a footpath")
@@ -112,6 +108,9 @@ class McRAPTORLabel(McRAPTORBaseLabel):
 
 
 class McRAPTORLabelWithPath(McRAPTORLabel):
+    STOP_PREFIX = "STOP_"
+    TRIP_PREFIX = "TRIP_"
+
     def __init__(self, time: int, cost: int, stop: str, path: list[int | str]):
         super().__init__(time, cost, stop)
         self.path = path
@@ -141,9 +140,9 @@ class McRAPTORLabelWithPath(McRAPTORLabel):
 def convert_mc_raptor_path_element(path_element: int | str) -> int | str:
     if isinstance(path_element, int):
         return path_element
-    if path_element.startswith(McRAPTORLabel.STOP_PREFIX):
-        return int(path_element[len(McRAPTORLabel.STOP_PREFIX) :])
-    elif path_element.startswith(McRAPTORLabel.TRIP_PREFIX):
-        return path_element[len(McRAPTORLabel.TRIP_PREFIX) :]
+    if path_element.startswith(McRAPTORLabelWithPath.STOP_PREFIX):
+        return int(path_element[len(McRAPTORLabelWithPath.STOP_PREFIX) :])
+    elif path_element.startswith(McRAPTORLabelWithPath.TRIP_PREFIX):
+        return path_element[len(McRAPTORLabelWithPath.TRIP_PREFIX) :]
     else:
         raise ValueError(f"Unknown path element {path_element}")

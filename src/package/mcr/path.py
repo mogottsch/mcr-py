@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 from package.mcr.label import IntermediateLabel
 
@@ -14,16 +14,24 @@ class PathType(Enum):
 
 
 class Path:
-    def __init__(self, path_type: PathType, path: PathPoints):
+    def __init__(self, path_type: PathType, path: PathPoints, meta: Optional[dict[str, Any]] = None):
         self.path_type = path_type
         self.path = path
+        self.meta = meta
+
+    def __str__(self):
+        return f"Path(path_type={self.path_type}, path={self.path}, meta={self.meta})"
+    
+    def __repr__(self):
+        return str(self)
 
 
 class GTFSPath:
-    def __init__(self, start_stop_id: int, end_stop_id: int, trip_id: str):
+    def __init__(self, start_stop_id: int, end_stop_id: int, trip_id: str, meta: Optional[dict[str, Any]] = None):
         self.start_stop_id = start_stop_id
         self.end_stop_id = end_stop_id
         self.trip_id = trip_id
+        self.meta = meta
 
 
 class PathManager:
@@ -37,9 +45,9 @@ class PathManager:
     def __repr__(self):
         return str(self)
 
-    def _add_path(self, path_type: PathType, path: PathPoints) -> int:
+    def _add_path(self, path_type: PathType, path: PathPoints, meta: Optional[dict[str, Any]] = None) -> int:
         path_id = self.path_id_counter
-        self.paths[path_id] = Path(path_type, path)
+        self.paths[path_id] = Path(path_type, path, meta=meta)
         self.path_id_counter += 1
         return path_id
 
@@ -61,10 +69,13 @@ class PathManager:
         label_path = label.path[path_index_offset:]
         label.path = label.path[:path_index_offset]
 
-        path_id = self._add_path(path_type, label_path)
+        meta = {
+            "values": label.values,
+            "hidden_values": label.hidden_values,
+        }
+        path_id = self._add_path(path_type, label_path, meta=meta)
         label.path.append(
-            # -path_id  # we use negative path ids to differentiate between path ids and node ids
-            path_id  # yolo
+            path_id
         )
 
         return path_id
@@ -81,6 +92,7 @@ class PathManager:
                     Path(
                         path_type=path.path_type,
                         path=[translator_map[path.path_type][p] for p in path.path],
+                        meta=path.meta,
                     )
                 )
             elif path.path_type == PathType.PUBLIC_TRANSPORT:
@@ -93,6 +105,7 @@ class PathManager:
                         start_stop_id=int(path.path[0]),
                         trip_id=str(path.path[1]),
                         end_stop_id=int(path.path[2]),
+                        meta=path.meta,
                     )
                 )
         return translated_path
