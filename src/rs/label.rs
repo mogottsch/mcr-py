@@ -2,6 +2,7 @@ use mlc::bag;
 
 const PRICE_INCREMENT_INTERVAL_TARIFF: u64 = 30; // minutes
 const PRICE_INCREMENT_INTERVAL_NO_TARIFF: u64 = 15; // minutes
+const PRICE_PER_INCREMENT_INTERVAL: u64 = 100; // cents
 
 pub fn next_bike_tariff(
     old_label: &bag::Label<usize>,
@@ -22,7 +23,7 @@ pub fn next_bike_tariff(
         new_bicycle_duration_minutes / PRICE_INCREMENT_INTERVAL_TARIFF;
 
     let price_increment = new_price_increment_intervals - old_price_increment_intervals;
-    let new_price = new_label.values[1] + price_increment;
+    let new_price = new_label.values[1] + price_increment * PRICE_PER_INCREMENT_INTERVAL;
     let new_values = vec![new_label.values[0], new_price];
     bag::Label {
         node_id: new_label.node_id,
@@ -54,7 +55,7 @@ pub fn next_bike_without_tariff(
     if old_bicycle_duration == 0 && new_bicycle_duration != 0 {
         price_increment = new_price_increment_intervals + 1;
     }
-    let new_price = new_label.values[1] + price_increment;
+    let new_price = new_label.values[1] + price_increment * PRICE_PER_INCREMENT_INTERVAL;
     let new_values = vec![new_label.values[0], new_price];
     bag::Label {
         node_id: new_label.node_id,

@@ -42,7 +42,6 @@ class MCRGeoData:
                 nxgraph, osm_nodes, osm_edges
             )
 
-
             osm_nodes: pd.DataFrame = osm_nodes[["id"]]  # type: ignore
             osm_edges: pd.DataFrame = osm_edges[["u", "v", "length"]]  # type: ignore
 
@@ -242,7 +241,7 @@ def add_multi_modal_weights(edges: pd.DataFrame) -> pd.DataFrame:
         + (edges["travel_time_bike"].round(ACCURACY) * ACCURACY_MULTIPLIER)
         .astype(int)
         .astype(str)
-        + ")"
+        + ",0)"
     )
 
     return edges

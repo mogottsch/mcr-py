@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from package.raptor.bag import BaseLabel as McRAPTORBaseLabel
 
+COST_SHORT_DISTANCE_TICKET_INCR = 220
+COST_LONG_DISTANCE_TICKET_INCR = 320
+
+LENGTH_SHORT_DISTANCE_TICKET = 4
+
 
 class IntermediateLabel:
     def __init__(
@@ -37,9 +42,14 @@ class IntermediateLabel:
     def to_mlc_label(
         self, new_node_id: int, with_hidden_values: bool = True
     ) -> IntermediateLabel:
+        hidden_values = []
+        if with_hidden_values:
+            hidden_values = self.hidden_values.copy() or [0]
+            hidden_values[0] = 0
+
         return IntermediateLabel(
             values=self.values,
-            hidden_values=[0] if with_hidden_values else [],
+            hidden_values=hidden_values,
             # hidden_values=self.hidden_values,
             path=self.path,
             osm_node_id=new_node_id,
@@ -48,17 +58,20 @@ class IntermediateLabel:
     def to_mc_raptor_label(
         self, stop_id: str, null_cost: bool = False
     ) -> McRAPTORLabel:
+        n_stops = self.hidden_values[1] if len(self.hidden_values) > 1 else 0
         if len(self.path) > 0:
             return McRAPTORLabelWithPath(
                 time=self.values[0],
                 cost=0 if null_cost else self.values[1],
                 stop=stop_id,
                 path=self.path,
+                n_stops=n_stops,
             )
         return McRAPTORLabel(
             time=self.values[0],
             cost=0 if null_cost else self.values[1],
             stop=stop_id,
+            n_stops=n_stops,
         )
 
 
@@ -79,15 +92,28 @@ def merge_intermediate_bags(
 
 
 class McRAPTORLabel(McRAPTORBaseLabel):
-    def __init__(self, time: int, cost: int, stop: str):
+    def __init__(
+        self,
+        time: int,
+        cost: int,
+        stop: str,
+        n_stops: int = 0,
+    ):
         super().__init__(time, stop)
         self.cost = cost
+        self.n_stops = n_stops
 
     def strictly_dominates(self, other: McRAPTORLabel) -> bool:
         return self.arrival_time <= other.arrival_time and self.cost <= other.cost
 
     def update_along_trip(self, arrival_time: int, stop_id: str, trip_id: str):
         super().update_along_trip(arrival_time, stop_id, trip_id)
+        if self.n_stops == 0:
+            self.cost += COST_SHORT_DISTANCE_TICKET_INCR
+        if self.n_stops == LENGTH_SHORT_DISTANCE_TICKET:
+            self.cost -= COST_SHORT_DISTANCE_TICKET_INCR
+            self.cost += COST_LONG_DISTANCE_TICKET_INCR
+        self.n_stops += 1
 
     def update_along_footpath(self, walking_time: int, stop_id: str):
         raise NotImplementedError("This label should not be updated along a footpath")
@@ -96,12 +122,12 @@ class McRAPTORLabel(McRAPTORBaseLabel):
         super().update_before_route_bag_merge(departure_time, stop_id)
 
     def update_before_stop_bag_merge(self, stop_id: str):
-        pass
+        self.n_stops = 4  # artifically set to 4, so that if another public transport trip is taken, long distance ticket is used
 
     def to_intermediate_label(self, node_id: int) -> IntermediateLabel:
         return IntermediateLabel(
             values=[self.arrival_time, self.cost],
-            hidden_values=[],
+            hidden_values=[0, self.n_stops],
             path=[],
             osm_node_id=node_id,
         )
@@ -111,8 +137,8 @@ class McRAPTORLabelWithPath(McRAPTORLabel):
     STOP_PREFIX = "STOP_"
     TRIP_PREFIX = "TRIP_"
 
-    def __init__(self, time: int, cost: int, stop: str, path: list[int | str]):
-        super().__init__(time, cost, stop)
+    def __init__(self, time: int, cost: int, stop: str, n_stops, path: list[int | str]):
+        super().__init__(time, cost, stop, n_stops=n_stops)
         self.path = path
 
     def update_along_trip(self, arrival_time: int, stop_id: str, trip_id: str):

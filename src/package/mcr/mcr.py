@@ -346,7 +346,6 @@ class MCR:
             translate_osm_node_id_to_walking_node_id(node_id): [
                 label.to_mlc_label(
                     translate_osm_node_id_to_walking_node_id(node_id),
-                    with_hidden_values=False,
                 )
                 for label in labels
             ]
@@ -393,9 +392,6 @@ class MCR:
         Merges two bag dictionaries into one.
         Expects that bags_a has a bag for every node in bags_b.
         """
-        # combined_bags = deepcopy(
-        #     bags_a
-        # )  # remove deepcopy, if you are sure, that bicycle_result_bags is not used anymore
         combined_bags = bags_a
         for node_id, bag in bags_b.items():
             merged_bag = merge_intermediate_bags(combined_bags[node_id], bag)
