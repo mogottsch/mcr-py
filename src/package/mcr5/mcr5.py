@@ -1,17 +1,14 @@
-import multiprocessing
 from multiprocessing import Process, Queue
 import pickle
 import psutil
 import time
 import os
+from package import key
 
 from package.mcr.data import MCRGeoData
 from package.mcr.mcr import MCR
 from package.mcr.output import OutputFormat
 from package.mcr5.h3_osm_interaction import H3OSMLocationMapping
-
-n_cores = multiprocessing.cpu_count()
-DEFAULT_MAX_PROCESSES = n_cores - 1
 
 
 class MCR5:
@@ -19,7 +16,7 @@ class MCR5:
         self,
         geo_data: MCRGeoData,
         min_free_memory: float = 3.0,
-        max_processes: int = DEFAULT_MAX_PROCESSES,
+        max_processes: int = key.DEFAULT_N_PROCESSES,
     ):
         self.geo_data = geo_data
         self.min_free_memory = min_free_memory
@@ -54,12 +51,9 @@ class MCR5:
                 or get_available_memory() < self.min_free_memory
             ):
                 if errors.full():
-                    raise Exception(
-                        "Error queue is full."
-                    )
+                    raise Exception("Error queue is full.")
                 self.print_status(processes, location_mappings)
                 time.sleep(1)
-
 
             p = Process(
                 target=self.run_mcr,
@@ -91,7 +85,6 @@ class MCR5:
 
         with open(os.path.join(output_dir, "errors.pkl"), "wb") as f:
             pickle.dump(errors, f)
-
 
         return errors
 
@@ -138,7 +131,7 @@ class MCR5:
     ):
         available_memory = pretty_bytes(get_available_memory())
         active_processes_count = self.get_active_process_count(processes)
-        
+
         started_processes = len(processes)
         total_processes = len(location_mappings)
 

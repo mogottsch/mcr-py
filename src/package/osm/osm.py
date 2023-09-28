@@ -4,6 +4,7 @@ from typing import Tuple
 from typing_extensions import Annotated
 
 import pyrosm
+import pandas as pd
 import geopandas as gpd
 from shapely.geometry import MultiPoint
 from pyrosm.data import get_data
@@ -12,6 +13,7 @@ from package.osm import osm, key as osm_key
 from package.logger import Timed, rlog
 from package.osm import graph
 from rich import print
+from osmnx.distance import cKDTree
 
 
 from package.logger import rlog
@@ -25,10 +27,7 @@ def list_available(selector: str):
     if selector != "":
         root_name += f" for {selector}"
     console.print_tree_from_any(get_available(selector), root_name=root_name)
-    print(
-        f"[i] Use one of the names listed above as value for `--city-id`.[/i]"
-    )
-
+    print(f"[i] Use one of the names listed above as value for `--city-id`.[/i]")
 
 
 def get_available(
@@ -149,3 +148,28 @@ def download_city(city_id: str, path: str):
     fp = get_data(city_id, update=True)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     shutil.move(fp, path)
+
+
+def add_nearest_osm_node_id(
+    geo_count_df: pd.DataFrame, osm_nodes_df: pd.DataFrame
+) -> pd.DataFrame | gpd.GeoDataFrame:
+    """
+    Find the nearest OSM node for each GeoCount and return a dict with the
+    mapping from OSM node ID to count.
+    """
+    osm_nodes_array = osm_nodes_df[["lat", "lon"]].to_numpy()
+    kdtree = cKDTree(osm_nodes_array)
+
+    to_query = geo_count_df[["lat", "lon"]].to_numpy()
+    distance, index = kdtree.query(to_query)
+
+    distance = distance * 111111
+    nearest_node_ids = osm_nodes_df.iloc[index].id.values
+
+    geo_count_df["nearest_osm_node_id"] = nearest_node_ids
+    geo_count_df["distance"] = distance
+
+    if geo_count_df["distance"].max() > 1000:
+        print("WARNING: max distance > 1000m")
+
+    return geo_count_df

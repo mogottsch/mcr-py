@@ -1,7 +1,8 @@
 import os
 import pandas as pd
 from multiprocessing import Pool
-import multiprocessing as mp
+
+from package import key
 
 
 def process_file(path, nodes):
@@ -16,7 +17,7 @@ def process_file(path, nodes):
 def read_labels_for_nodes(dir: str, nodes: pd.Series):
     all_labels = []
 
-    with Pool(processes=mp.cpu_count() - 2) as pool:
+    with Pool(processes=key.DEFAULT_N_PROCESSES) as pool:
         files = [entry.path for entry in os.scandir(dir) if entry.is_file()]
         label_dfs = pool.starmap(process_file, [(file, nodes) for file in files])
 

@@ -1,3 +1,4 @@
+import multiprocessing
 import os
 from typing import TypeVar
 import tempfile
@@ -67,7 +68,9 @@ COMPLETE_GTFS_CLEAN_COMMAND_NAME = (
 
 
 # paths
-TMP_DIR_LOCATION = os.path.expanduser(os.environ.get("MCR_PY_TMP_DIR", tempfile.gettempdir()))
+TMP_DIR_LOCATION = os.path.expanduser(
+    os.environ.get("MCR_PY_TMP_DIR", tempfile.gettempdir())
+)
 ROOT_TMP_DIR_NAME = "mcr-py"
 TMP_OSM_DIR_NAME = "osm"
 TMP_GTFS_DIR_NAME = "gtfs"
@@ -90,3 +93,5 @@ TRACER_MAP_KEY = "tracer_map"
 
 S = TypeVar("S")  # additional information about stop
 T = TypeVar("T")  # additional information about trip
+
+DEFAULT_N_PROCESSES = multiprocessing.cpu_count() - 2
