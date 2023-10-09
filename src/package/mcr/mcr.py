@@ -8,7 +8,7 @@ import mcr_py
 from mcr_py import PyLabel
 import pyrosm
 from package import storage, strtime
-from package.logger import Timed, rlog
+from package.logger import Timed, Timer, rlog
 from package.mcr.data import MCRGeoData
 from package.mcr.label import (
     IntermediateLabel,
@@ -37,12 +37,17 @@ class MCR:
         disable_paths: bool = False,
         output_format: OutputFormat = OutputFormat.CLASS_PICKLE,
         bicycle_price_function: str = "next_bike_no_tariff",
+        logger=rlog,
+        enable_limit: bool = False,
     ):
         self.geo_data = mcr_geo_data
         self.disable_paths = disable_paths
         self.path_manager: Optional[PathManager] = None
         self.output_format = output_format
         self.bicycle_price_function = bicycle_price_function
+        self.logger = logger
+        self.timer = Timer(logger)
+        self.enable_limit = enable_limit
         if not disable_paths:
             self.path_manager = PathManager()
 
@@ -55,9 +60,12 @@ class MCR:
         disable_paths: bool = False,
         output_format: OutputFormat = OutputFormat.CLASS_PICKLE,
         bicycle_price_function: str = "next_bike_no_tariff",
+        logger=rlog,
     ):
         mcr_geo_data = MCRGeoData(stops_path, structs_path, city_id, osm_path)
-        return MCR(mcr_geo_data, disable_paths, output_format, bicycle_price_function)
+        return MCR(
+            mcr_geo_data, disable_paths, output_format, bicycle_price_function, logger
+        )
 
     def run(
         self, start_node_id: int, start_time: str, max_transfers: int, output_path: str
@@ -66,9 +74,9 @@ class MCR:
 
         bags_i: dict[int, IntermediateBags] = {}
 
-        rlog.debug(f"Starting MCR with config: {self.__dict__}")
+        self.logger.debug(f"Starting MCR with config: {self.__dict__}")
 
-        with Timed.info("Running Dijkstra step"):
+        with self.timer.info("Running Dijkstra step"):
             walking_result_bags = mcr_py.run_mlc_with_node_and_time(
                 self.geo_data.walking_graph_cache,
                 self.geo_data.walking_node_to_resetted_map[f"W{start_node_id}"],
@@ -76,42 +84,42 @@ class MCR:
                 disable_paths=self.disable_paths,
             )
 
-        with Timed.info("Extracting dijkstra step bags"):
+        with self.timer.info("Extracting dijkstra step bags"):
             walking_result_bags = self.convert_walking_bags(
-                walking_result_bags, add_zero_weight_to_values=True
+                walking_result_bags,
             )
             bags_i[0] = walking_result_bags
-            # bags_i[0] = deepcopy(walking_result_bags)
 
             n_osm_nodes = len(walking_result_bags)
-            rlog.debug(f"Found {n_osm_nodes} osm nodes in walking step")
+            self.logger.debug(f"Found {n_osm_nodes} osm nodes in walking step")
 
         for i in range(1, max_transfers + 1):
-            rlog.info(f"Running iteration {i}")
+            self.logger.info(f"Running iteration {i}")
             offset = i * 2 - 1
 
-            with Timed.info("Preparing input for bicycle step"):
+            with self.timer.info("Preparing input for bicycle step"):
                 bicycle_bags = self.prepare_bicycle_step_input(walking_result_bags)
                 assert len(bicycle_bags) > 0
 
-            with Timed.info("Running bicycle step"):
+            with self.timer.info("Running bicycle step"):
                 bicycle_result_bags = mcr_py.run_mlc_with_bags(
-                    self.geo_data.graph_cache,
+                    self.geo_data.mm_graph_cache,
                     bicycle_bags,
                     update_label_func=self.bicycle_price_function,
                     disable_paths=self.disable_paths,
+                    enable_limit=self.enable_limit,
                 )
 
-            with Timed.info("Extracting bicycle step bags"):
+            with self.timer.info("Extracting bicycle step bags"):
                 bicycle_result_bags = self.convert_bicycle_bags(
                     bicycle_result_bags, path_index_offset=offset
                 )
-                assert len(bicycle_result_bags) == n_osm_nodes
+                # assert len(bicycle_result_bags) == n_osm_nodes
 
-            with Timed.info("Preparing input for MCRAPTOR step"):
+            with self.timer.info("Preparing input for MCRAPTOR step"):
                 mc_raptor_bags = self.prepare_mcraptor_step_input(walking_result_bags)
 
-            with Timed.info("Running MCRAPTOR step"):
+            with self.timer.info("Running MCRAPTOR step"):
                 mc_raptor = McRaptorSingle(
                     self.geo_data.structs_dict,
                     default_transfer_time=60,
@@ -121,30 +129,29 @@ class MCR:
                 )
                 mc_raptor_result_bags = mc_raptor.run(mc_raptor_bags)  # type: ignore
 
-            with Timed.info("Extracting MCRAPTOR step bags"):
+            with self.timer.info("Extracting MCRAPTOR step bags"):
                 mc_raptor_result_bags = self.convert_mc_raptor_bags(
                     mc_raptor_result_bags, path_index_offset=offset
                 )
                 if len(mc_raptor_result_bags) == 0:
-                    rlog.warn("No MCRAPTOR bags found - the area might be too small")
+                    self.logger.warn("No MCRAPTOR bags found")
 
-            with Timed.info("Merging bags"):
+            with self.timer.info("Merging bags"):
                 combined_bags = self.merge_bags(
                     bicycle_result_bags,
-                    mc_raptor_result_bags,  # i am really unsure whether the input here has the same node ids type
+                    mc_raptor_result_bags,
                 )
-                assert len(combined_bags) == n_osm_nodes
 
-            with Timed.info("Preparing input for walking step"):
+            with self.timer.info("Preparing input for walking step"):
                 walking_bags = self.prepare_walking_step_input(combined_bags)
 
-            with Timed.info("Running walking step"):
+            with self.timer.info("Running walking step"):
                 walking_result_bags = mcr_py.run_mlc_with_bags(
                     self.geo_data.walking_graph_cache,
                     walking_bags,
                     disable_paths=self.disable_paths,
                 )
-            with Timed.info("Extracting walking step bags"):
+            with self.timer.info("Extracting walking step bags"):
                 walking_result_bags = self.convert_walking_bags(
                     walking_result_bags, path_index_offset=offset + 1
                 )
@@ -152,7 +159,7 @@ class MCR:
 
             bags_i[i] = walking_result_bags
 
-        with Timed.info("Saving bags"):
+        with self.timer.info("Saving bags"):
             self.save_bags(bags_i, output_path)
 
     def save_bags(
@@ -205,7 +212,6 @@ class MCR:
         self,
         bags: dict,
         path_index_offset: int = 0,
-        add_zero_weight_to_values: bool = False,
     ) -> IntermediateBags:
         """
         Converts the bags from MLC on a walking graph to the intermediate bags
@@ -216,9 +222,6 @@ class MCR:
         :param bags: The bags resulting from MLC on a walking graph.
         :param path_index_offset: Used to properly build the path and should
             be set to the length of the path before the step.
-        :param add_zero_weight_to_values: Whether to add a zero weight to the
-            values of the labels. Needed when adding the 'cost' value after the
-            initial walking MLC step.
         """
         converted_bags = convert_mlc_bags_to_intermediate_bags(
             bags,
@@ -227,7 +230,6 @@ class MCR:
                     1:
                 ]  # remove the 'W' prefix and cast to int
             ),
-            add_zero_weight_to_values=add_zero_weight_to_values,
         )
         if self.path_manager:
             self.path_manager.extract_all_paths_from_bags(
@@ -341,7 +343,6 @@ class MCR:
             ]
             return resetted_walking_node_id
 
-        # translate node ids
         walking_bags = {
             translate_osm_node_id_to_walking_node_id(node_id): [
                 label.to_mlc_label(
@@ -351,6 +352,11 @@ class MCR:
             ]
             for node_id, labels in bags.items()
         }
+
+        # nullify time spent on bicycle
+        for bag in walking_bags.values():
+            for label in bag:
+                label.hidden_values[0] = 0
 
         return walking_bags
 
@@ -373,7 +379,7 @@ class MCR:
             translate_osm_node_id_to_stop_id(node_id): Bag.from_labels(
                 [
                     label.to_mc_raptor_label(
-                        translate_osm_node_id_to_stop_id(node_id), null_cost=True  # type: ignore
+                        translate_osm_node_id_to_stop_id(node_id), # type: ignore
                     )
                     for label in labels
                 ]
@@ -390,11 +396,11 @@ class MCR:
     ) -> IntermediateBags:
         """
         Merges two bag dictionaries into one.
-        Expects that bags_a has a bag for every node in bags_b.
         """
         combined_bags = bags_a
-        for node_id, bag in bags_b.items():
-            merged_bag = merge_intermediate_bags(combined_bags[node_id], bag)
+        for node_id, b_bag in bags_b.items():
+            a_bag = combined_bags.get(node_id, [])
+            merged_bag = merge_intermediate_bags(a_bag, b_bag)
             combined_bags[node_id] = merged_bag
 
         return combined_bags

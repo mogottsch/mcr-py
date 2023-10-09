@@ -1,9 +1,9 @@
-from typing import Tuple, TypeVar
+from typing import Optional, Tuple, TypeVar
 import pandas as pd
 
 from mcr_py import GraphCache
 from package import storage
-from package.logger import Timed
+from package.logger import Timed, rlog
 from package.osm import osm, graph
 
 
@@ -13,6 +13,9 @@ ACCURACY_MULTIPLIER = 10 ** (ACCURACY - 1)
 AVG_WALKING_SPEED = 1.4  # m/s
 AVG_BIKING_SPEED = 4.0  # m/s
 
+N_TOTAL_WEIGHTS = 2  # time, cost
+N_TOTAL_HIDDEN_WEIGHTS = 2  # biking time, public transport stops
+
 
 class MCRGeoData:
     def __init__(
@@ -21,11 +24,14 @@ class MCRGeoData:
         structs_path: str,
         city_id: str = "",
         osm_path: str = "",
+        bicycle_location_path: str = "",
+        logger=rlog,
     ):
         self.structs_path = structs_path
         self.stops_path = stops_path
         self.city_id = city_id
         self.osm_path = osm_path
+        self.logger = logger
 
         self.structs_dict = storage.read_any_dict(structs_path)
         with Timed.info("Reading stops"):
@@ -42,6 +48,21 @@ class MCRGeoData:
                 nxgraph, osm_nodes, osm_edges
             )
 
+            osm_nodes = osm_nodes.set_index("id")
+            osm_nodes["id"] = osm_nodes.index
+
+            self.bicycle_locations = None
+            if bicycle_location_path != "":
+                with Timed.info("Reading bicycle locations"):
+                    self.bicycle_locations = storage.read_df(bicycle_location_path)
+                    self.bicycle_locations = osm.add_nearest_osm_node_id(
+                        self.bicycle_locations, osm_nodes
+                    )
+            else:
+                self.logger.warn(
+                    "No bicycle locations provided - will use random locations"
+                )
+
             osm_nodes: pd.DataFrame = osm_nodes[["id"]]  # type: ignore
             osm_edges: pd.DataFrame = osm_edges[["u", "v", "length"]]  # type: ignore
 
@@ -55,7 +76,11 @@ class MCRGeoData:
                 v: k for k, v in self.stop_to_osm_node_map.items()
             }
 
-            osm_nodes = mark_bicycles(osm_nodes)
+            if self.bicycle_locations is not None:
+                osm_nodes = mark_bicycles(osm_nodes, self.bicycle_locations)
+            else:
+                osm_nodes = mark_bicycles_random(osm_nodes, 100)
+
             self.bicycle_transfer_nodes_walking_node_ids = osm_nodes[
                 osm_nodes["has_bicycle"]
             ].id.values
@@ -86,36 +111,75 @@ class MCRGeoData:
                 self.walking_node_to_resetted_map
             )
 
-            multi_modal_edges = add_multi_modal_weights(multi_modal_edges)
-            walking_edges = add_single_modal_weights(walking_edges)
+            multi_modal_edges = add_weights(multi_modal_edges, ["travel_time"])
+            multi_modal_edges = add_weights(
+                multi_modal_edges, ["travel_time_bike"], hidden=True
+            )
+            self.walking_edges = add_weights(walking_edges, ["travel_time"])
+            self.walking_edges = add_weights(walking_edges, [], hidden=True)
 
             raw_edges = multi_modal_edges[
                 ["u", "v", "weights", "hidden_weights"]
             ].to_dict(
                 "records"  # type: ignore
             )
-            raw_walking_edges = walking_edges[["u", "v", "weights"]].to_dict("records")  # type: ignore
+            raw_walking_edges = walking_edges[
+                ["u", "v", "weights", "hidden_weights"]
+            ].to_dict(
+                "records"  # type: ignore
+            )
+            self.osm_nodes = osm_nodes
 
         with Timed.info("Creating graph cache"):
-            self.graph_cache = GraphCache()
-            self.graph_cache.set_graph(raw_edges)
+            self.mm_graph_cache = GraphCache()
+            self.mm_graph_cache.set_graph(raw_edges)
             self.walking_graph_cache = GraphCache()
             self.walking_graph_cache.set_graph(raw_walking_edges)
 
-    def get_size(self) -> int:
+    def add_pois_to_mm_graph(self, pois: pd.DataFrame) -> None:
         """
-        Returns the size in bytes of the data stored in this object.
+        Adds POIs to the multi modal graph cache.
+
+        Args:
+            pois: A dataframe containing POIs. Must have the columns "nearest_osm_node_id" and "type".
         """
-        return (
-            self.stops_df.memory_usage(deep=True).sum()
-            + self.graph_cache.get_size()
-            + self.walking_graph_cache.get_size()
+        self.osm_nodes = osm.list_column_to_osm_nodes(self.osm_nodes, pois, "type")
+        self.type_map: dict[str, int] = {}
+        for t in pois["type"].unique():
+            self.type_map[t] = len(self.type_map)
+
+        self.osm_nodes["type_internal"] = self.osm_nodes["type"].map(
+            lambda x: list(map(self.type_map.get, x))
+        )
+        self.osm_nodes["mm_walking_node_id"] = "W" + self.osm_nodes["id"].astype(str)
+        self.osm_nodes["resetted_mm_walking_node_id"] = self.osm_nodes[
+            "mm_walking_node_id"
+        ].map(
+            self.multi_modal_node_to_resetted_map  # type: ignore
         )
 
+        resetted_mm_walking_node_id_to_type_map = (
+            self.osm_nodes[["resetted_mm_walking_node_id", "type_internal"]].set_index(
+                "resetted_mm_walking_node_id"
+            )["type_internal"]
+        ).to_dict()
 
-def mark_bicycles(nodes: pd.DataFrame) -> pd.DataFrame:
+        self.mm_graph_cache.set_node_weights(resetted_mm_walking_node_id_to_type_map)
+
+
+def mark_bicycles(nodes: pd.DataFrame, bicycle_locations: pd.DataFrame) -> pd.DataFrame:
     nodes["has_bicycle"] = False
-    nodes.loc[nodes.sample(100).index, "has_bicycle"] = True
+
+    nodes.loc[bicycle_locations["nearest_osm_node_id"], "has_bicycle"] = True
+
+    return nodes
+
+
+def mark_bicycles_random(nodes: pd.DataFrame, n: int) -> pd.DataFrame:
+    nodes["has_bicycle"] = False
+
+    nodes.loc[nodes.sample(n).index, "has_bicycle"] = True
+
     return nodes
 
 
@@ -228,31 +292,21 @@ def create_transfer_edges(nodes: pd.DataFrame):
     return transfer_edges
 
 
-def add_multi_modal_weights(edges: pd.DataFrame) -> pd.DataFrame:
-    edges["weights"] = (
+def add_weights(edges: pd.DataFrame, columns: list[str], hidden=False) -> pd.DataFrame:
+    col_name = "hidden_weights" if hidden else "weights"
+    n_padding = N_TOTAL_HIDDEN_WEIGHTS if hidden else N_TOTAL_WEIGHTS
+
+    mid_seperator = "," if len(columns) > 0 and n_padding > 0 else ""
+
+    edges[col_name] = (
         "("
-        + (edges["travel_time"].round(ACCURACY) * ACCURACY_MULTIPLIER)
+        + (edges[columns].round(ACCURACY) * ACCURACY_MULTIPLIER)
         .astype(int)
         .astype(str)
-        + ",0)"
-    )
-    edges["hidden_weights"] = (
-        "("
-        + (edges["travel_time_bike"].round(ACCURACY) * ACCURACY_MULTIPLIER)
-        .astype(int)
-        .astype(str)
-        + ",0)"
+        .apply(lambda x: ",".join(x), axis=1)
+        + mid_seperator
+        + ",".join(["0"] * (n_padding - len(columns)))
+        + ")"
     )
 
-    return edges
-
-
-def add_single_modal_weights(edges: pd.DataFrame) -> pd.DataFrame:
-    edges["weights"] = (
-        "("
-        + (edges["travel_time"].round(ACCURACY) * ACCURACY_MULTIPLIER)
-        .astype(int)
-        .astype(str)
-        + ",0)"
-    )
     return edges

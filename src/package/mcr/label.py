@@ -33,43 +33,33 @@ class IntermediateLabel:
 
     def copy_with_node_id(self, node_id: int) -> IntermediateLabel:
         return IntermediateLabel(
-            values=self.values,
-            hidden_values=self.hidden_values,
+            values=self.values.copy(),
+            hidden_values=self.hidden_values.copy(),
             path=self.path.copy(),
             osm_node_id=node_id,
         )
 
-    def to_mlc_label(
-        self, new_node_id: int, with_hidden_values: bool = True
-    ) -> IntermediateLabel:
-        hidden_values = []
-        if with_hidden_values:
-            hidden_values = self.hidden_values.copy() or [0]
-            hidden_values[0] = 0
-
+    def to_mlc_label(self, new_node_id: int) -> IntermediateLabel:
         return IntermediateLabel(
-            values=self.values,
-            hidden_values=hidden_values,
-            # hidden_values=self.hidden_values,
-            path=self.path,
+            values=self.values.copy(),
+            hidden_values=self.hidden_values.copy(),
+            path=self.path.copy(),
             osm_node_id=new_node_id,
         )
 
-    def to_mc_raptor_label(
-        self, stop_id: str, null_cost: bool = False
-    ) -> McRAPTORLabel:
+    def to_mc_raptor_label(self, stop_id: str) -> McRAPTORLabel:
         n_stops = self.hidden_values[1] if len(self.hidden_values) > 1 else 0
         if len(self.path) > 0:
             return McRAPTORLabelWithPath(
                 time=self.values[0],
-                cost=0 if null_cost else self.values[1],
+                cost=self.values[1],
                 stop=stop_id,
                 path=self.path,
                 n_stops=n_stops,
             )
         return McRAPTORLabel(
             time=self.values[0],
-            cost=0 if null_cost else self.values[1],
+            cost=self.values[1],
             stop=stop_id,
             n_stops=n_stops,
         )
@@ -97,7 +87,7 @@ class McRAPTORLabel(McRAPTORBaseLabel):
         time: int,
         cost: int,
         stop: str,
-        n_stops: int = 0,
+        n_stops: int,
     ):
         super().__init__(time, stop)
         self.cost = cost
@@ -122,7 +112,8 @@ class McRAPTORLabel(McRAPTORBaseLabel):
         super().update_before_route_bag_merge(departure_time, stop_id)
 
     def update_before_stop_bag_merge(self, stop_id: str):
-        self.n_stops = 4  # artifically set to 4, so that if another public transport trip is taken, long distance ticket is used
+        pass
+        # self.n_stops = 4  # artifically set to 4, so that if another public transport trip is taken, long distance ticket is used
 
     def to_intermediate_label(self, node_id: int) -> IntermediateLabel:
         return IntermediateLabel(

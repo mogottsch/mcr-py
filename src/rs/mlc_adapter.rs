@@ -46,17 +46,6 @@ impl IntoPy<PyObject> for PyBags {
     }
 }
 
-// #[pyfunction]
-// pub fn run_mlc(_py: Python, raw_edges: Vec<HashMap<&str, &PyAny>>, start_node_id: usize) -> PyBags {
-//     io::stdout().flush().unwrap();
-//     let g = parse_graph(raw_edges);
-//     let mut mlc = MLC::new(g).unwrap();
-//     mlc.set_start_node(start_node_id);
-//     let bags = mlc.run().unwrap();
-//
-//     PyBags(bags.clone())
-// }
-
 #[pyfunction]
 pub fn run_mlc(_py: Python, graph_cache: &GraphCache, start_node_id: usize) -> PyBags {
     let g = graph_cache.graph.as_ref().unwrap();
@@ -125,6 +114,7 @@ pub fn run_mlc_with_bags(
     bags: HashMap<usize, Vec<&PyAny>>,
     update_label_func: Option<String>,
     disable_paths: Option<bool>,
+    enable_limit: Option<bool>,
 ) -> PyBags {
     // convert the PyAny's to Labels
     let mut converted_bags: Bags<usize> = HashMap::new();
@@ -164,6 +154,9 @@ pub fn run_mlc_with_bags(
 
     let g = graph_cache.graph.as_ref().unwrap();
     let mut mlc = MLC::new(g).unwrap();
+    if let Some(enable_limit) = enable_limit {
+        mlc.set_enable_limit(enable_limit);
+    }
     if let Some(disable_paths) = disable_paths {
         mlc.set_disable_paths(disable_paths);
     }

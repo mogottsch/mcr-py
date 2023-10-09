@@ -151,25 +151,61 @@ def download_city(city_id: str, path: str):
 
 
 def add_nearest_osm_node_id(
-    geo_count_df: pd.DataFrame, osm_nodes_df: pd.DataFrame
+    df_lat_long: pd.DataFrame, osm_nodes_df: pd.DataFrame, max_distance: float = 1000
 ) -> pd.DataFrame | gpd.GeoDataFrame:
     """
-    Find the nearest OSM node for each GeoCount and return a dict with the
-    mapping from OSM node ID to count.
+    Adds the columns "nearest_osm_node_id" and "distance" to df_lat_long, which contains the
+    nearest osm node id from osm_nodes_df and the distance to it for each entry in df_lat_long.
+    Raises an exception if the distance is larger than max_distance.
+
+    Args:
+        df_lat_long: The dataframe to assign to osm_nodes_df. Must contain columns "lat" and "lon".
+        osm_nodes_df: The dataframe containing the osm nodes to assign df to. Must contain columns "lat" and "lon".
+        max_distance: The maximum distance in meters to search for the nearest node.
     """
     osm_nodes_array = osm_nodes_df[["lat", "lon"]].to_numpy()
     kdtree = cKDTree(osm_nodes_array)
 
-    to_query = geo_count_df[["lat", "lon"]].to_numpy()
+    to_query = df_lat_long[["lat", "lon"]].to_numpy()
     distance, index = kdtree.query(to_query)
 
     distance = distance * 111111
     nearest_node_ids = osm_nodes_df.iloc[index].id.values
 
-    geo_count_df["nearest_osm_node_id"] = nearest_node_ids
-    geo_count_df["distance"] = distance
+    df_lat_long["nearest_osm_node_id"] = nearest_node_ids
+    df_lat_long["distance"] = distance
 
-    if geo_count_df["distance"].max() > 1000:
-        print("WARNING: max distance > 1000m")
+    if df_lat_long["distance"].max() > 1000:
+        raise Exception(
+            "The maximum distance to the nearest OSM node is larger than 1000 meters. "
+        )
 
-    return geo_count_df
+    return df_lat_long
+
+
+def list_column_to_osm_nodes(
+    osm_nodes_df: pd.DataFrame, df: pd.DataFrame, column: str
+) -> pd.DataFrame:
+    """
+    Assigns each entry in df to a node in osm_nodes_df and lists all the values of column
+    for each node.
+
+    Args:
+        df: The dataframe to assign to osm_nodes_df. Must contain columns "nearest_osm_node_id" and column.
+        osm_nodes_df: The dataframe to assign df to. The index must be the osm node ids.
+    """
+    grouped: pd.Series = df.groupby("nearest_osm_node_id")[column].agg(
+        lambda x: list(set(x))
+    )  # type: ignore
+    # drop column if it already exists to make this function idempotent
+    if column in osm_nodes_df.columns:
+        osm_nodes_df = osm_nodes_df.drop(columns=[column])
+    osm_nodes_df = osm_nodes_df.merge(
+        grouped, left_index=True, right_index=True, how="left"
+    )
+    osm_nodes_df[column] = osm_nodes_df[column].apply(
+        lambda x: x if isinstance(x, list) else []
+    )
+    # osm_nodes_df = osm_nodes_df.drop(columns=["nearest_osm_node_id"])
+
+    return osm_nodes_df

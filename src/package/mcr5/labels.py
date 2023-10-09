@@ -18,7 +18,7 @@ def read_labels_for_nodes(dir: str, nodes: pd.Series):
     all_labels = []
 
     with Pool(processes=key.DEFAULT_N_PROCESSES) as pool:
-        files = [entry.path for entry in os.scandir(dir) if entry.is_file()]
+        files = [entry.path for entry in os.scandir(dir) if entry.is_file() and entry.name.endswith(".feather")]
         label_dfs = pool.starmap(process_file, [(file, nodes) for file in files])
 
     all_labels.extend(label_dfs)
