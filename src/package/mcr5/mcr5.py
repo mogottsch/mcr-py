@@ -125,7 +125,7 @@ class MCR5:
             mcr_runner = MCR(
                 mcr_geo_data,
                 disable_paths=True,
-                # enable_limit=True,
+                enable_limit=True,
                 output_format=OutputFormat.DF_FEATHER,
                 logger=l,
             )

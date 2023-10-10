@@ -2,6 +2,7 @@ from collections.abc import Callable
 from typing import Optional
 from h3 import h3
 import folium
+import pandas as pd
 
 
 def get_h3_cells_for_nodes(nodes: list[dict], resolution: int) -> set[str]:
