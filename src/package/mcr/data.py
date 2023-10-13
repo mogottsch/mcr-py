@@ -1,5 +1,6 @@
 from typing import Optional, Tuple, TypeVar
 import pandas as pd
+import geopandas as gpd
 
 from mcr_py import GraphCache
 from package import storage
@@ -55,6 +56,18 @@ class MCRGeoData:
             if bicycle_location_path != "":
                 with Timed.info("Reading bicycle locations"):
                     self.bicycle_locations = storage.read_df(bicycle_location_path)
+                    # trim bicycle locations to osm_nodes
+                    self.bicycle_locations = gpd.GeoDataFrame(
+                        self.bicycle_locations,
+                        geometry=gpd.points_from_xy(
+                            self.bicycle_locations.lon,
+                            self.bicycle_locations.lat,
+                        ),
+                    )
+                    self.bicycle_locations = osm.crop_to_nodes(
+                        self.bicycle_locations, osm_nodes
+                    )
+
                     self.bicycle_locations = osm.add_nearest_osm_node_id(
                         self.bicycle_locations, osm_nodes
                     )

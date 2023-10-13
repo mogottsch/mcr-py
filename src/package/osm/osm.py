@@ -140,6 +140,19 @@ def crop_to_stops(
     return nodes, edges
 
 
+def crop_to_nodes(
+    locations: gpd.GeoDataFrame, nodes: gpd.GeoDataFrame, buffer: float = 0
+) -> gpd.GeoDataFrame:
+    combined_geometry = MultiPoint(nodes.geometry.tolist())
+    convex_hull = combined_geometry.convex_hull
+    if buffer > 0:
+        convex_hull = convex_hull.buffer(buffer)
+
+    locations = locations.loc[locations.geometry.within(convex_hull), :]
+
+    return locations
+
+
 def get_osm_path_from_city_id(city_id: str) -> str:
     return os.path.join(OSM_DIR_PATH, f"{city_id}.pbf")
 
@@ -176,9 +189,14 @@ def add_nearest_osm_node_id(
     df_lat_long["distance"] = distance
 
     if df_lat_long["distance"].max() > 1000:
-        raise Exception(
-            "The maximum distance to the nearest OSM node is larger than 1000 meters. "
+        problematic_entries = df_lat_long.loc[df_lat_long["distance"] > 1000]
+        rlog.warn(
+            f"Found {len(problematic_entries)} entries with distance to nearest OSM node larger than 1000 meters."
         )
+        for index, row in problematic_entries.iterrows():
+            rlog.warn(
+                f"lat: {row['lat']}, lon: {row['lon']}, nearest_osm_node_id: {row['nearest_osm_node_id']}, distance: {row['distance']}"
+            )
 
     return df_lat_long
 
