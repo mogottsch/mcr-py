@@ -48,22 +48,6 @@ class MCR:
         if not disable_paths:
             self.path_manager = PathManager()
 
-    @staticmethod
-    def from_geo_data_inputs(
-        stops_path: str,
-        structs_path: str,
-        city_id: str = "",
-        osm_path: str = "",
-        disable_paths: bool = False,
-        output_format: OutputFormat = OutputFormat.CLASS_PICKLE,
-        bicycle_price_function: str = "next_bike_no_tariff",
-        logger=rlog,
-    ):
-        mcr_geo_data = MCRGeoData(stops_path, structs_path, city_id, osm_path)
-        return MCR(
-            mcr_geo_data, disable_paths, output_format, bicycle_price_function, logger
-        )
-
     def run(
         self, start_node_id: int, start_time: str, max_transfers: int, output_path: str
     ):
@@ -79,6 +63,7 @@ class MCR:
                 self.geo_data.walking_node_to_resetted_map[f"W{start_node_id}"],
                 start_time_in_seconds,
                 disable_paths=self.disable_paths,
+                enable_limit=self.enable_limit,
             )
 
         with self.timer.info("Extracting dijkstra step bags"):
@@ -94,44 +79,8 @@ class MCR:
             self.logger.info(f"Running iteration {i}")
             offset = i * 2 - 1
 
-            with self.timer.info("Preparing input for bicycle step"):
-                bicycle_bags = self.prepare_bicycle_step_input(walking_result_bags)
-                assert len(bicycle_bags) > 0
-
-            with self.timer.info("Running bicycle step"):
-                bicycle_result_bags = mcr_py.run_mlc_with_bags(
-                    self.geo_data.mm_graph_cache,
-                    bicycle_bags,
-                    update_label_func=self.bicycle_price_function,
-                    disable_paths=self.disable_paths,
-                    enable_limit=self.enable_limit,
-                )
-
-            with self.timer.info("Extracting bicycle step bags"):
-                bicycle_result_bags = self.convert_bicycle_bags(
-                    bicycle_result_bags, path_index_offset=offset
-                )
-                # assert len(bicycle_result_bags) == n_osm_nodes
-
-            with self.timer.info("Preparing input for MCRAPTOR step"):
-                mc_raptor_bags = self.prepare_mcraptor_step_input(walking_result_bags)
-
-            with self.timer.info("Running MCRAPTOR step"):
-                mc_raptor = McRaptorSingle(
-                    self.geo_data.structs_dict,
-                    default_transfer_time=60,
-                    label_class=McRAPTORLabel
-                    if self.disable_paths
-                    else McRAPTORLabelWithPath,
-                )
-                mc_raptor_result_bags = mc_raptor.run(mc_raptor_bags)  # type: ignore
-
-            with self.timer.info("Extracting MCRAPTOR step bags"):
-                mc_raptor_result_bags = self.convert_mc_raptor_bags(
-                    mc_raptor_result_bags, path_index_offset=offset
-                )
-                if len(mc_raptor_result_bags) == 0:
-                    self.logger.warn("No MCRAPTOR bags found")
+            bicycle_result_bags = self.run_bicycle_step(walking_result_bags, offset)
+            mc_raptor_result_bags = self.run_mc_raptor_step(walking_result_bags, offset)
 
             with self.timer.info("Merging bags"):
                 combined_bags = self.merge_bags(
@@ -147,17 +96,65 @@ class MCR:
                     self.geo_data.walking_graph_cache,
                     walking_bags,
                     disable_paths=self.disable_paths,
+                    enable_limit=self.enable_limit,
                 )
             with self.timer.info("Extracting walking step bags"):
                 walking_result_bags = self.convert_walking_bags(
                     walking_result_bags, path_index_offset=offset + 1
                 )
-                assert len(walking_result_bags) == n_osm_nodes
 
             bags_i[i] = walking_result_bags
 
         with self.timer.info("Saving bags"):
             self.save_bags(bags_i, output_path)
+
+    def run_bicycle_step(self, walking_result_bags: IntermediateBags, offset: int):
+        with self.timer.info("Preparing input for bicycle step"):
+            bicycle_input_bags = self.prepare_bicycle_step_input(walking_result_bags)
+            if len(bicycle_input_bags) == 0 and self.enable_limit:
+                self.logger.warn("No bicycles reached with walking step")
+                return walking_result_bags
+
+        with self.timer.info("Running bicycle step"):
+            bicycle_result_bags = mcr_py.run_mlc_with_bags(
+                self.geo_data.mm_graph_cache,
+                bicycle_input_bags,
+                update_label_func=self.bicycle_price_function,
+                disable_paths=self.disable_paths,
+                enable_limit=self.enable_limit,
+            )
+
+        with self.timer.info("Extracting bicycle step bags"):
+            bicycle_result_bags = self.convert_bicycle_bags(
+                bicycle_result_bags, path_index_offset=offset
+            )
+
+        return bicycle_result_bags
+
+    def run_mc_raptor_step(
+        self, walking_result_bags: IntermediateBags, offset: int
+    ) -> IntermediateBags:
+        with self.timer.info("Preparing input for MCRAPTOR step"):
+            mc_raptor_bags = self.prepare_mcraptor_step_input(walking_result_bags)
+
+        with self.timer.info("Running MCRAPTOR step"):
+            mc_raptor = McRaptorSingle(
+                self.geo_data.structs_dict,
+                default_transfer_time=60,
+                label_class=(McRAPTORLabel
+                if self.disable_paths
+                else McRAPTORLabelWithPath),
+            )
+            mc_raptor_result_bags = mc_raptor.run(mc_raptor_bags)  # type: ignore
+
+        with self.timer.info("Extracting MCRAPTOR step bags"):
+            mc_raptor_result_bags = self.convert_mc_raptor_bags(
+                mc_raptor_result_bags, path_index_offset=offset
+            )
+            if len(mc_raptor_result_bags) == 0:
+                self.logger.warn("No MCRAPTOR bags found")
+
+        return mc_raptor_result_bags
 
     def save_bags(
         self,

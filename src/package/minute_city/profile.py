@@ -26,7 +26,7 @@ def calculate_profile_for_group(group, types):
             labels_for_cost_and_time = labels_for_cost[
                 labels_for_cost["time"] <= curr_time
             ]
-            # print(labels_for_cost_and_time[types].sum())
+
             all_reached = labels_for_cost_and_time[types].sum().min() != 0
             curr_time += 60
 

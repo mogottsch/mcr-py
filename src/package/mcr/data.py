@@ -177,6 +177,36 @@ class MCRGeoData:
 
         self.mm_graph_cache.set_node_weights(resetted_mm_walking_node_id_to_type_map)
 
+    def add_pois_to_walking_graph(self, pois: pd.DataFrame) -> None:
+        """
+        Adds POIs to the walking graph cache.
+
+        Args:
+            pois: A dataframe containing POIs. Must have the columns "nearest_osm_node_id" and "type".
+        """
+        self.osm_nodes = osm.list_column_to_osm_nodes(self.osm_nodes, pois, "type")
+        self.type_map: dict[str, int] = {}
+        for t in pois["type"].unique():
+            self.type_map[t] = len(self.type_map)
+
+        self.osm_nodes["type_internal"] = self.osm_nodes["type"].map(
+            lambda x: list(map(self.type_map.get, x))
+        )
+        self.osm_nodes["walking_node_id"] = "W" + self.osm_nodes["id"].astype(str)
+        self.osm_nodes["resetted_walking_node_id"] = self.osm_nodes[
+            "walking_node_id"
+        ].map(
+            self.multi_modal_node_to_resetted_map  # type: ignore
+        )
+
+        resetted_walking_node_id_to_type_map = (
+            self.osm_nodes[["resetted_walking_node_id", "type_internal"]].set_index(
+                "resetted_walking_node_id"
+            )["type_internal"]
+        ).to_dict()
+
+        self.walking_graph_cache.set_node_weights(resetted_walking_node_id_to_type_map)
+
 
 def mark_bicycles(nodes: pd.DataFrame, bicycle_locations: pd.DataFrame) -> pd.DataFrame:
     nodes["has_bicycle"] = False

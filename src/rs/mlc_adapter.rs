@@ -64,6 +64,7 @@ pub fn run_mlc_with_node_and_time(
     time: usize,
     disable_paths: Option<bool>,
     update_label_func: Option<String>,
+    enable_limit: Option<bool>,
 ) -> PyBags {
     let g = graph_cache.graph.as_ref().unwrap();
     let mut mlc = MLC::new(g).unwrap();
@@ -74,6 +75,9 @@ pub fn run_mlc_with_node_and_time(
     let update_label_func = UpdateLabelFunc::from_str(&update_label_func).get_func();
     if let Some(func) = update_label_func {
         mlc.set_update_label_func(func);
+    }
+    if let Some(enable_limit) = enable_limit {
+        mlc.set_enable_limit(enable_limit);
     }
     mlc.set_start_node_with_time(start_node_id, time);
     let bags = mlc.run().unwrap();

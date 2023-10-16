@@ -117,6 +117,13 @@ class McRaptorSingle(Generic[L, S, T]):
             route_bag.to_bag().update_before_stop_bag_merge(stop_id),
         )
         if is_any_added:
+            for label in output_stop_bag:
+                if (
+                    hasattr(label, "path")
+                    and label.path is not None
+                    and len(label.path) > 0
+                ):
+                    print([l for l, _ in route_bag._bag])
             marked_stops.add(stop_id)
 
         stop_bag = bags[stop_id]

@@ -109,6 +109,7 @@ def run(
             )
         pois = minute_city.fetch_pois_for_area(geo_meta.boundary, nodes)
         mcr_geo_data.add_pois_to_mm_graph(pois)
+        mcr_geo_data.add_pois_to_walking_graph(pois)
         mcr_runner = mcr.MCR(
             mcr_geo_data,
             disable_paths=disable_paths,

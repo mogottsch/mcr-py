@@ -50,6 +50,7 @@ class IntermediateLabel:
     def to_mc_raptor_label(self, stop_id: str) -> McRAPTORLabel:
         n_stops = self.hidden_values[1] if len(self.hidden_values) > 1 else 0
         if len(self.path) > 0:
+            print(self.path, stop_id)
             return McRAPTORLabelWithPath(
                 time=self.values[0],
                 cost=self.values[1],
@@ -131,6 +132,12 @@ class McRAPTORLabelWithPath(McRAPTORLabel):
     def __init__(self, time: int, cost: int, stop: str, n_stops, path: list[int | str]):
         super().__init__(time, cost, stop, n_stops=n_stops)
         self.path = path
+
+    def __str__(self):
+        return f"McRAPTORLabelWithPath(time={self.arrival_time}, cost={self.cost}, n_stops={self.n_stops}, path={self.path})"
+
+    def __repr__(self):
+        return str(self)
 
     def update_along_trip(self, arrival_time: int, stop_id: str, trip_id: str):
         super().update_along_trip(arrival_time, stop_id, trip_id)

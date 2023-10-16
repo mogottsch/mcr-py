@@ -32,9 +32,7 @@ def fetch_pois_for_area(
         for name, attr in attributes.X_MINUTE_CITY_QUERIES
     ]
     pois = query.fetch_and_merge_queries_async(queries, area_of_interest)
-    pois: gpd.GeoDataFrame = osm.add_nearest_osm_node_id(
-        pois, nodes  # type: ignore
-    )
+    pois: gpd.GeoDataFrame = osm.add_nearest_osm_node_id(pois, nodes)  # type: ignore
 
     return pois
 
@@ -75,8 +73,6 @@ def get_profiles_df(labels_with_pois: gpd.GeoDataFrame, types: list[str]):
                 name, prof = result
                 profiles[name] = prof
         pbar.close()
-
-    # df
 
     with Timed.info("Creating profiles dataframe"):
         start_time: int = labels_with_pois["time"].min()  # type: ignore
