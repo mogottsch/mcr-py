@@ -32,7 +32,9 @@ def fetch_pois_for_area(
         for name, attr in attributes.X_MINUTE_CITY_QUERIES
     ]
     pois = query.fetch_and_merge_queries_async(queries, area_of_interest)
-    pois: gpd.GeoDataFrame = osm.add_nearest_osm_node_id(pois, nodes)  # type: ignore
+    pois: gpd.GeoDataFrame = osm.add_nearest_osm_node_id(
+        pois, nodes  # type: ignore
+    )
 
     return pois
 

@@ -3,6 +3,7 @@ from typing import Tuple
 
 from geopandas import pd
 from package import key
+from package.geometa import GeoMeta
 
 from package.gtfs import archive
 from package.logger import Timed, rlog
@@ -11,10 +12,7 @@ from package.logger import Timed, rlog
 def crop(
     path: str,
     output: str,
-    lat_min: float,
-    lon_min: float,
-    lat_max: float,
-    lon_max: float,
+    geo_meta: GeoMeta,
     time_start: datetime,
     time_end: datetime,
 ):
@@ -42,9 +40,7 @@ def crop(
     """
     )
 
-    stops_df = crop_stops(
-        stops_df, lat_min=lat_min, lat_max=lat_max, lon_min=lon_min, lon_max=lon_max
-    )
+    stops_df = geo_meta.crop_df(stops_df, key.STOP_LAT_KEY, key.STOP_LON_KEY)
     trips_df, stop_times_df = reconcile_trips_and_stop_times_with_stops(
         trips_df, stop_times_df, stops_df
     )
@@ -93,39 +89,6 @@ def crop(
     )
 
 
-def crop_stops(
-    stops_df: pd.DataFrame,
-    lat_min: float,
-    lon_min: float,
-    lat_max: float,
-    lon_max: float,
-) -> pd.DataFrame:
-    """
-    Trim stops to those within the bounding box.
-    """
-    rlog.debug(
-        f"""
-    New Bounding Box:
-    lat_min: {lat_min}
-    lon_min: {lon_min}
-    lat_max: {lat_max}
-    lon_max: {lon_max}
-
-    Previous Bounding Box:
-    lat_min: {stops_df[key.STOP_LAT_KEY].min()}
-    lon_min: {stops_df[key.STOP_LON_KEY].min()}
-    lat_max: {stops_df[key.STOP_LAT_KEY].max()}
-    lon_max: {stops_df[key.STOP_LON_KEY].max()}
-    """
-    )
-    return stops_df[
-        (stops_df[key.STOP_LAT_KEY] >= lat_min)
-        & (stops_df[key.STOP_LAT_KEY] <= lat_max)
-        & (stops_df[key.STOP_LON_KEY] >= lon_min)
-        & (stops_df[key.STOP_LON_KEY] <= lon_max)
-    ]
-
-
 def reconcile_trips_and_stop_times_with_stops(
     trips_df: pd.DataFrame,
     stop_times_df: pd.DataFrame,
@@ -135,10 +98,10 @@ def reconcile_trips_and_stop_times_with_stops(
     Crop trips and stop times to the given stops.
     """
     stop_ids = stops_df[key.STOP_ID_KEY].unique()
-    stop_times_df = stop_times_df[stop_times_df[key.STOP_ID_KEY].isin(stop_ids)]
+    stop_times_df = stop_times_df[stop_times_df[key.STOP_ID_KEY].isin(stop_ids)]  # type: ignore
     # only keep trips that have at least two entries in stop_times_df
-    stop_times_df = stop_times_df[stop_times_df[key.TRIP_ID_KEY].duplicated(keep=False)]
-    trips_df = trips_df[trips_df[key.TRIP_ID_KEY].isin(stop_times_df[key.TRIP_ID_KEY])]
+    stop_times_df = stop_times_df[stop_times_df[key.TRIP_ID_KEY].duplicated(keep=False)]  # type: ignore
+    trips_df = trips_df[trips_df[key.TRIP_ID_KEY].isin(stop_times_df[key.TRIP_ID_KEY])]  # type: ignore
 
     return trips_df, stop_times_df
 
@@ -166,10 +129,10 @@ def crop_trips(
         parsed_calendar_df[key.CALENDAR_START_DATE_KEY] <= time_end
     ) & (parsed_calendar_df[key.CALENDAR_END_DATE_KEY] >= time_start)
 
-    calendar_df = calendar_df[time_ranges_touch]
+    calendar_df = calendar_df[time_ranges_touch]  # type: ignore
 
     service_ids = calendar_df[key.SERVICE_ID_KEY].unique()
-    trips_df = trips_df[trips_df[key.SERVICE_ID_KEY].isin(service_ids)]
+    trips_df = trips_df[trips_df[key.SERVICE_ID_KEY].isin(service_ids)]  # type: ignore
 
     return trips_df, calendar_df
 
@@ -182,7 +145,7 @@ def reconcile_stop_times_with_trips(
     Crop stop times to those that occur within the given trips.
     """
     trip_ids = trips_df[key.TRIP_ID_KEY].unique()
-    stop_times_df = stop_times_df[stop_times_df[key.TRIP_ID_KEY].isin(trip_ids)]
+    stop_times_df = stop_times_df[stop_times_df[key.TRIP_ID_KEY].isin(trip_ids)]  # type: ignore
 
     return stop_times_df
 
@@ -195,6 +158,6 @@ def reconcile_stops_with_stop_times(
     Crop stops to those that occur within the given stop times.
     """
     stop_ids = stop_times_df[key.STOP_ID_KEY].unique()
-    stops_df = stops_df[stops_df[key.STOP_ID_KEY].isin(stop_ids)]
+    stops_df = stops_df[stops_df[key.STOP_ID_KEY].isin(stop_ids)]  # type: ignore
 
     return stops_df

@@ -1,3 +1,4 @@
+from enum import Enum
 import os
 import shutil
 from typing import Tuple
@@ -9,6 +10,7 @@ import geopandas as gpd
 from shapely.geometry import MultiPoint
 from pyrosm.data import get_data
 from package import storage, cache
+from package.geometa import GeoMeta
 from package.osm import osm, key as osm_key
 from package.logger import Timed, rlog
 from package.osm import graph
@@ -48,14 +50,13 @@ def get_available(
     return data
 
 
-def get_graph_for_city_cropped_to_stops(
-    osm_reader: pyrosm.OSM,
-    stops_df: gpd.GeoDataFrame,
+def get_graph_for_city_cropped_to_boundary(
+    osm_reader: pyrosm.OSM, geo_meta: GeoMeta
 ) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     hash = cache.combine_hashes(
         [
             cache.hash_str(osm_reader.filepath),
-            cache.hash_gdf(stops_df),
+            geo_meta.hash(),
         ]
     )
 
@@ -73,8 +74,9 @@ def get_graph_for_city_cropped_to_stops(
         # TODO: optimally we should first crop the data and then read the network
         nodes, edges = osm.read_network(osm_reader)
 
-    with Timed.info("Cropping OSM network to stops"):
-        nodes, edges = osm.crop_to_stops(nodes, edges, stops_df)
+    with Timed.info("Cropping OSM network to boundary"):
+        nodes = geo_meta.crop_gdf(nodes)
+        edges = geo_meta.crop_gdf(edges)
 
     with Timed.info("Ensuring graph is connected"):
         nxgraph = graph.create_nx_graph(osm_reader, nodes, edges)
@@ -163,13 +165,23 @@ def download_city(city_id: str, path: str):
     shutil.move(fp, path)
 
 
+class OutlierMethod(Enum):
+    REMOVE = "remove"
+    WARN = "keep"
+
+
 def add_nearest_osm_node_id(
-    df_lat_long: pd.DataFrame, osm_nodes_df: pd.DataFrame, max_distance: float = 1000
+    df_lat_long: pd.DataFrame,
+    osm_nodes_df: pd.DataFrame,
+    max_distance: float = 1000,
+    outlier_method: OutlierMethod = OutlierMethod.WARN,
 ) -> pd.DataFrame | gpd.GeoDataFrame:
     """
     Adds the columns "nearest_osm_node_id" and "distance" to df_lat_long, which contains the
     nearest osm node id from osm_nodes_df and the distance to it for each entry in df_lat_long.
-    Raises an exception if the distance is larger than max_distance.
+
+    Depending on the outlier_method, entries with a distance larger than max_distance are either
+    removed or a warning is logged.
 
     Args:
         df_lat_long: The dataframe to assign to osm_nodes_df. Must contain columns "lat" and "lon".
@@ -188,15 +200,22 @@ def add_nearest_osm_node_id(
     df_lat_long["nearest_osm_node_id"] = nearest_node_ids
     df_lat_long["distance"] = distance
 
-    if df_lat_long["distance"].max() > 1000:
-        problematic_entries = df_lat_long.loc[df_lat_long["distance"] > 1000]
-        rlog.warn(
-            f"Found {len(problematic_entries)} entries with distance to nearest OSM node larger than 1000 meters."
-        )
-        for index, row in problematic_entries.iterrows():
+    if df_lat_long["distance"].max() > max_distance:
+        problematic_entries = df_lat_long.loc[df_lat_long["distance"] > max_distance]
+
+        if outlier_method == OutlierMethod.REMOVE:
+            df_lat_long = df_lat_long.loc[df_lat_long["distance"] <= max_distance]
             rlog.warn(
-                f"lat: {row['lat']}, lon: {row['lon']}, nearest_osm_node_id: {row['nearest_osm_node_id']}, distance: {row['distance']}"
+                f"Removed {len(problematic_entries)} entries with distance to nearest OSM node larger than {max_distance} meters"
             )
+        elif outlier_method == OutlierMethod.WARN:
+            rlog.warn(
+                f"Found {len(problematic_entries)} entries with distance to nearest OSM node larger than {max_distance} meters"
+            )
+            for index, row in problematic_entries.iterrows():
+                rlog.warn(
+                    f"lat: {row['lat']}, lon: {row['lon']}, nearest_osm_node_id: {row['nearest_osm_node_id']}, distance: {row['distance']}"
+                )
 
     return df_lat_long
 

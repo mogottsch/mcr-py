@@ -1,14 +1,12 @@
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 import sys
 
-import geopandas as gpd
 import pandas as pd
 
 import mcr_py
 from mcr_py import PyLabel
-import pyrosm
 from package import storage, strtime
-from package.logger import Timed, Timer, rlog
+from package.logger import Timer, rlog
 from package.mcr.data import MCRGeoData
 from package.mcr.label import (
     IntermediateLabel,
@@ -18,7 +16,6 @@ from package.mcr.label import (
 )
 from package.mcr.output import OutputFormat
 from package.mcr.path import PathManager, PathType
-from package.osm import osm
 from package.raptor.mcraptor_single import McRaptorSingle
 from package.raptor.bag import Bag
 from package.mcr.bag import (
@@ -379,7 +376,7 @@ class MCR:
             translate_osm_node_id_to_stop_id(node_id): Bag.from_labels(
                 [
                     label.to_mc_raptor_label(
-                        translate_osm_node_id_to_stop_id(node_id), # type: ignore
+                        translate_osm_node_id_to_stop_id(node_id),  # type: ignore
                     )
                     for label in labels
                 ]
@@ -420,13 +417,13 @@ class MCR:
         return bags
 
 
-def get_graph(
-    osm_reader: pyrosm.OSM, stops_df: gpd.GeoDataFrame
-) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
-    with Timed.info("Getting OSM graph"):
-        nodes, edges = osm.get_graph_for_city_cropped_to_stops(osm_reader, stops_df)
-
-    return nodes, edges
+# def get_graph(
+#     osm_reader: pyrosm.OSM, geo_meta: GeoMeta
+# ) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+#     with Timed.info("Getting OSM graph"):
+#         nodes, edges = osm.get_graph_for_city_cropped_to_boundary(osm_reader, stops_df)
+#
+#     return nodes, edges
 
 
 def get_size(obj: Any) -> int:

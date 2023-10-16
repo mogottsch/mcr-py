@@ -10,7 +10,7 @@ from package.logger import Timed
 CLEAN_STOPS_FILENAME = storage.get_df_filename_for_name(STOPS_KEY)
 
 CITY_ID_HELP = """
-City ID used for pyrosm, see pyrosm "Available datasets" for more information. 
+City ID used for pyrosm, see pyrosm "Available datasets" for more information.
 The area of the dataset associated with the city ID should be at least as \
 large as the area (convex hull) of the stops.
 Required if '--osm' is not provided.
@@ -36,6 +36,12 @@ DEFAULT_AVG_WALKING_SPEED = 1.4
 def generate(
     output: Annotated[str, typer.Option(help="Output file in pickle format.")],
     stops: Annotated[str, typer.Option(help=STOPS_HELP)],
+    geo_meta_path: Annotated[
+        str,
+        typer.Option(
+            help="Path to GeoMeta object.",
+        ),
+    ],
     avg_walking_speed: Annotated[
         float,
         typer.Option(
@@ -77,6 +83,7 @@ def generate(
             city_id,
             osm,
             stops,
+            geo_meta_path,
             avg_walking_speed,
             max_walking_duration,
             parsed_method,

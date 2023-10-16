@@ -84,10 +84,7 @@ python src/main.py raptor \
 ```
 python src/main.py gtfs download 777 ./data/vrs.zip
 python src/main.py gtfs crop ./data/vrs.zip ./data/cologne_gtfs.zip \
-    --lat-min=50.888361 \
-    --lat-max=50.988361 \
-    --lon-min=6.889974 \
-    --lon-max=6.999974 \
+    --geometa-path ./data/geometa.pkl \
     --time-start 23.06.2023-00:00:00 \
     --time-end 24.06.2023-00:00:00
 python src/main.py gtfs clean  ./data/cologne_gtfs.zip ./data/cleaned/

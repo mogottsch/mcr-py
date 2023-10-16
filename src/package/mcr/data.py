@@ -1,9 +1,10 @@
-from typing import Optional, Tuple, TypeVar
+from typing import Tuple, TypeVar
 import pandas as pd
 import geopandas as gpd
 
 from mcr_py import GraphCache
 from package import storage
+from package.geometa import GeoMeta
 from package.logger import Timed, rlog
 from package.osm import osm, graph
 
@@ -23,6 +24,7 @@ class MCRGeoData:
         self,
         stops_path: str,
         structs_path: str,
+        geo_meta: GeoMeta,
         city_id: str = "",
         osm_path: str = "",
         bicycle_location_path: str = "",
@@ -33,9 +35,10 @@ class MCRGeoData:
         self.city_id = city_id
         self.osm_path = osm_path
         self.logger = logger
+        self.geo_meta = geo_meta
 
         self.structs_dict = storage.read_any_dict(structs_path)
-        with Timed.info("Reading stops"):
+        with Timed.info("Reading stops and geo meta"):
             self.stops_df = storage.read_gdf(stops_path)
 
         with Timed.info("Preparing graphs"):
@@ -43,7 +46,7 @@ class MCRGeoData:
             (
                 osm_nodes,
                 osm_edges,
-            ) = osm.get_graph_for_city_cropped_to_stops(osm_reader, self.stops_df)
+            ) = osm.get_graph_for_city_cropped_to_boundary(osm_reader, self.geo_meta)
             nxgraph = graph.create_nx_graph(osm_reader, osm_nodes, osm_edges)
             nxgraph, osm_nodes, osm_edges = graph.crop_graph_to_largest_component(
                 nxgraph, osm_nodes, osm_edges
@@ -54,23 +57,18 @@ class MCRGeoData:
 
             self.bicycle_locations = None
             if bicycle_location_path != "":
-                with Timed.info("Reading bicycle locations"):
-                    self.bicycle_locations = storage.read_df(bicycle_location_path)
-                    # trim bicycle locations to osm_nodes
-                    self.bicycle_locations = gpd.GeoDataFrame(
-                        self.bicycle_locations,
-                        geometry=gpd.points_from_xy(
-                            self.bicycle_locations.lon,
-                            self.bicycle_locations.lat,
-                        ),
-                    )
-                    self.bicycle_locations = osm.crop_to_nodes(
-                        self.bicycle_locations, osm_nodes
-                    )
-
-                    self.bicycle_locations = osm.add_nearest_osm_node_id(
-                        self.bicycle_locations, osm_nodes
-                    )
+                self.bicycle_locations = storage.read_df(bicycle_location_path)
+                self.bicycle_locations = gpd.GeoDataFrame(
+                    self.bicycle_locations,
+                    geometry=gpd.points_from_xy(
+                        self.bicycle_locations.lon,
+                        self.bicycle_locations.lat,
+                    ),
+                )
+                self.bicycle_locations = self.geo_meta.crop_gdf(self.bicycle_locations)
+                self.bicycle_locations = osm.add_nearest_osm_node_id(
+                    self.bicycle_locations, osm_nodes
+                )
             else:
                 self.logger.warn(
                     "No bicycle locations provided - will use random locations"

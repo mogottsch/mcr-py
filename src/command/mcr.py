@@ -6,6 +6,7 @@ from pyrosm.data import os
 from command.footpaths import CITY_ID_HELP, OSM_HELP, STOPS_HELP
 from command.raptor import STRUCTS_HELP
 from package import storage
+from package.geometa import GeoMeta
 from package.mcr import mcr
 from package.logger import Timed, rlog
 from package.mcr.data import MCRGeoData
@@ -17,6 +18,12 @@ from package.osm import osm as osm_lib
 def run(
     stops: Annotated[str, typer.Option(help=STOPS_HELP)],
     structs: Annotated[str, typer.Option(help=STRUCTS_HELP)],
+    geo_meta_path: Annotated[
+        str,
+        typer.Option(
+            help="Path to the MCR geo meta file.",
+        ),
+    ],
     start_node_id: Annotated[
         int,
         typer.Option(help="OSM node ID of the start node."),
@@ -54,11 +61,21 @@ def run(
     ] = False,
     bicycle_price_function: Annotated[
         str,
-        typer.Option(),
+        typer.Option(help="Function to be used to calculate the price of a bike ride."),
     ] = "next_bike_no_tariff",
+    bicycle_location_path: Annotated[
+        str,
+        typer.Option(help="Path to the bicycle location file."),
+    ] = "",
     output_format: Annotated[
         OutputFormat, typer.Option()
     ] = OutputFormat.CLASS_PICKLE.value,  # type: ignore
+    enable_limit: Annotated[
+        bool,
+        typer.Option(
+            help="Discard labels that won't contribute to X-minute city metric (speeds up computation).",
+        ),
+    ] = False,
 ):
     validate_flags(
         stops,
@@ -68,9 +85,14 @@ def run(
     )
 
     with Timed.info("Running MCR"):
-        mcr_geo_data = MCRGeoData(stops, structs, city_id)
-        with Timed.info("Reading stops"):
-            other_stops_df = storage.read_gdf(stops)
+        geo_meta = GeoMeta.load(geo_meta_path)
+        mcr_geo_data = MCRGeoData(
+            stops,
+            structs,
+            geo_meta,
+            city_id,
+            bicycle_location_path=bicycle_location_path,
+        )
 
         osm_path = osm_lib.get_osm_path_from_city_id(city_id)
         if not os.path.exists(osm_path) and city_id:
@@ -82,16 +104,17 @@ def run(
         osm_reader = osm_lib.new_osm_reader(osm_path)
 
         with Timed.info("Getting OSM graph"):
-            nodes, _ = osm_lib.get_graph_for_city_cropped_to_stops(
-                osm_reader, other_stops_df
+            nodes, _ = osm_lib.get_graph_for_city_cropped_to_boundary(
+                osm_reader, geo_meta
             )
-        pois = minute_city.fetch_pois_for_area(nodes.unary_union.convex_hull, nodes)
+        pois = minute_city.fetch_pois_for_area(geo_meta.boundary, nodes)
         mcr_geo_data.add_pois_to_mm_graph(pois)
         mcr_runner = mcr.MCR(
             mcr_geo_data,
             disable_paths=disable_paths,
             bicycle_price_function=bicycle_price_function,
             output_format=output_format,
+            enable_limit=enable_limit,
         )
         mcr_runner.run(start_node_id, start_time, max_transfers, output)
 

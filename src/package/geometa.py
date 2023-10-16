@@ -1,7 +1,10 @@
-import shapely
+from shapely.geometry import Point, Polygon
 import pickle
 import geopandas as gpd
+import pandas as pd
 import folium
+
+from package import cache
 
 
 class GeoMeta:
@@ -9,8 +12,11 @@ class GeoMeta:
     GeoMeta incorporates general geospatial information, including the boundary of the area of consideration.
     """
 
-    def __init__(self, boundary: shapely.geometry.Polygon):
+    def __init__(self, boundary: Polygon):
         self.boundary = boundary
+
+    def hash(self):
+        return cache.hash_str(self.boundary.wkt)
 
     @staticmethod
     def load(path: str):
@@ -32,6 +38,23 @@ class GeoMeta:
             boundary = boundary.buffer(buffer)
 
         locations = locations.loc[locations.geometry.within(boundary), :]
+
+        return locations
+
+    def crop_df(
+        self, locations: pd.DataFrame, lat_col: str, lon_col: str, buffer: float = 0
+    ) -> pd.DataFrame:
+        boundary = self.boundary
+        if buffer > 0:
+            boundary = boundary.buffer(buffer)
+
+        locations = locations.loc[
+            locations.apply(
+                lambda x: boundary.contains(Point(x[lon_col], x[lat_col])),
+                axis=1,
+            ),
+            :,
+        ]
 
         return locations
 

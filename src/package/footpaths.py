@@ -2,6 +2,7 @@ from enum import Enum
 import os
 
 import geopandas as gpd
+from package.geometa import GeoMeta
 
 from package.osm import osm
 from package.logger import Timed, rlog
@@ -28,14 +29,16 @@ def generate(
     city_id: str,
     osm_path: str,
     stops_path: str,
+    geo_meta_path: str,
     avg_walking_speed: float,
     max_walking_duration: int,
     method: GenerationMethod = GenerationMethod.IGRAPH,
 ) -> dict[str, dict[str, int]]:
     osm_path = osm_path if osm_path else osm.get_osm_path_from_city_id(city_id)
 
-    with Timed.info("Reading stops"):
+    with Timed.info("Reading stops and geo meta"):
         stops_df = storage.read_gdf(stops_path)
+        geo_meta = GeoMeta.load(geo_meta_path)
 
     if not os.path.exists(osm_path) and city_id:
         rlog.info("Downloading OSM data")
@@ -46,7 +49,7 @@ def generate(
     osm_reader = osm.new_osm_reader(osm_path)
 
     with Timed.info("Getting OSM graph"):
-        nodes, edges = osm.get_graph_for_city_cropped_to_stops(osm_reader, stops_df)
+        nodes, edges = osm.get_graph_for_city_cropped_to_boundary(osm_reader, geo_meta)
 
     with Timed.info("Creating networkx graph"):
         nx_graph = graph.create_nx_graph(osm_reader, nodes, edges)
