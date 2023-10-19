@@ -1,68 +1,45 @@
 from typing import Any, Optional
-import sys
+from typing_extensions import Sequence
 
 import pandas as pd
 
 from package import storage, strtime
 from package.mcr.config import MCRConfig
-from package.mcr.data import MCRGeoData
 from package.mcr.label import (
     IntermediateLabel,
     merge_intermediate_bags,
 )
 from package.mcr.output import OutputFormat
 from package.mcr.path import PathManager
-from package.mcr.steps.public_transport import (
-    PublicTransportStep,
-    PublicTransportStepBuilder,
-)
+from package.mcr.steps.interface import Step, StepBuilder
 from package.mcr.bag import IntermediateBags
 
-from package.mcr.steps.bicycle import BicycleStep, BicycleStepBuilder
-from package.mcr.steps.walking import WalkingStep, WalkingStepBuilder
+
+StepBuilderMatrix = Sequence[Sequence[StepBuilder]]
+StepMatrix = list[list[Step]]
 
 
 class MCR:
     def __init__(
         self,
-        mcr_geo_data: MCRGeoData,
+        initial_steps: StepBuilderMatrix,
+        repeating_steps: StepBuilderMatrix,
         config: MCRConfig = MCRConfig(),
         output_format: OutputFormat = OutputFormat.CLASS_PICKLE,
-        bicycle_price_function: str = "next_bike_no_tariff",
     ):
-        self.geo_data = mcr_geo_data
         self.disable_paths = config.disable_paths
         self.path_manager: Optional[PathManager] = None
         if not self.disable_paths:
             self.path_manager = PathManager()
         self.output_format = output_format
-        self.bicycle_price_function = bicycle_price_function
         self.logger = config.logger
         self.timer = config.timer
         self.enable_limit = config.enable_limit
 
-    def run(
-        self, start_node_id: int, start_time: str, max_transfers: int, output_path: str
-    ):
-        start_time_in_seconds = strtime.str_time_to_seconds(start_time)
-        bicycle_step_builder = BicycleStepBuilder(
-            self.geo_data.mm_graph_cache,
-            self.geo_data.multi_modal_node_to_resetted_map,
-            self.geo_data.resetted_to_multi_modal_node_map,
-            self.geo_data.bicycle_transfer_nodes_walking_node_ids,
-            self.bicycle_price_function,
-        )
-        public_transport_step_builder = PublicTransportStepBuilder(
-            self.geo_data.structs_dict,
-            self.geo_data.osm_node_to_stop_map,
-            self.geo_data.stop_to_osm_node_map,
-        )
-        walking_step_builder = WalkingStepBuilder(
-            self.geo_data.walking_graph_cache,
-            self.geo_data.walking_node_to_resetted_map,
-            self.geo_data.resetted_to_walking_node_map,
-        )
+        self.initial_steps: StepMatrix = self.build_steps(initial_steps)
+        self.repeating_steps: StepMatrix = self.build_steps(repeating_steps)
 
+    def build_steps(self, step_builders: StepBuilderMatrix) -> StepMatrix:
         builder_kwargs = {
             "logger": self.logger,
             "timer": self.timer,
@@ -70,15 +47,15 @@ class MCR:
             "enable_limit": self.enable_limit,
             "disable_paths": self.disable_paths,
         }
-        bicycle_step = bicycle_step_builder.build(**builder_kwargs)
-        public_transport_step = public_transport_step_builder.build(**builder_kwargs)
-        walking_step = walking_step_builder.build(**builder_kwargs)
-
-        initial_steps = [[walking_step]]
-        repeating_steps = [
-            [bicycle_step, public_transport_step],
-            [walking_step],
+        return [
+            [step_builder.build(**builder_kwargs) for step_builder in step_builders]
+            for step_builders in step_builders
         ]
+
+    def run(
+        self, start_node_id: int, start_time: str, max_transfers: int, output_path: str
+    ):
+        start_time_in_seconds = strtime.str_time_to_seconds(start_time)
 
         bags_i: dict[int, IntermediateBags] = {}
 
@@ -86,7 +63,7 @@ class MCR:
 
         start_bags = self.create_start_bags(start_node_id, start_time_in_seconds)
 
-        for steps in initial_steps:
+        for steps in self.initial_steps:
             result_bags = []
             for step in steps:
                 result_bags.append(step.run(start_bags))
@@ -99,7 +76,7 @@ class MCR:
             offset = i * 2 - 1
 
             repeated_games = bags_i[i - 1]
-            for steps in repeating_steps:
+            for steps in self.repeating_steps:
                 result_bags = []
                 for step in steps:
                     result_bags.append(step.run(repeated_games, offset))
@@ -141,13 +118,6 @@ class MCR:
 
         if not self.disable_paths:
             results["path_manager"] = self.path_manager
-            results[
-                "multi_modal_node_to_resetted_map"
-            ] = self.geo_data.multi_modal_node_to_resetted_map
-            results[
-                "walking_node_to_resetted_map"
-            ] = self.geo_data.walking_node_to_resetted_map
-            results["stops_df"] = self.geo_data.stops_df
         storage.write_any_dict(
             results,
             output_path,

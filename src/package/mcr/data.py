@@ -93,7 +93,7 @@ class MCRGeoData:
             else:
                 osm_nodes = mark_bicycles_random(osm_nodes, 100)
 
-            self.bicycle_transfer_nodes_walking_node_ids = osm_nodes[
+            self.bicycle_transfer_osm_node_ids = osm_nodes[
                 osm_nodes["has_bicycle"]
             ].id.values
 
@@ -122,6 +122,23 @@ class MCRGeoData:
             self.resetted_to_walking_node_map = get_reverse_map(
                 self.walking_node_to_resetted_map
             )
+
+            self.osm_node_to_mm_bicycle_resetted_map = {
+                int(k[1:]): v
+                for k, v in self.multi_modal_node_to_resetted_map.items()
+                if k[0] == "B"
+            }
+            self.mm_walking_node_resetted_to_osm_node_map = {
+                k: int(v[1:])
+                for k, v in self.resetted_to_multi_modal_node_map.items()
+                if v[0] == "W"
+            }
+            self.osm_node_to_walking_resetted_map = {
+                int(k[1:]): v for k, v in self.walking_node_to_resetted_map.items()
+            }
+            self.walking_resetted_to_osm_node_map = {
+                v: k for k, v in self.osm_node_to_walking_resetted_map.items()
+            }
 
             multi_modal_edges = add_weights(multi_modal_edges, ["travel_time"])
             multi_modal_edges = add_weights(

@@ -13,9 +13,6 @@ class MCRConfig:
     ):
         self.logger = logger
         self.timer = Timer(self.logger)
-        self.logger.info("MCRConfig: init")
-        with self.timer.info("MCRConfig: init"):
-            pass
         self.path_manager: Optional[PathManager] = None
         self.enable_limit = enable_limit
         self.disable_paths = disable_paths

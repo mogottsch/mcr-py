@@ -12,6 +12,9 @@ from package.logger import Timed, rlog
 from package.mcr.config import MCRConfig
 from package.mcr.data import MCRGeoData
 from package.mcr.output import OutputFormat
+from package.mcr.steps.bicycle import BicycleStepBuilder
+from package.mcr.steps.public_transport import PublicTransportStepBuilder
+from package.mcr.steps.walking import WalkingStepBuilder
 from package.minute_city import minute_city
 from package.osm import osm as osm_lib
 
@@ -87,7 +90,7 @@ def run(
 
     with Timed.info("Running MCR"):
         geo_meta = GeoMeta.load(geo_meta_path)
-        mcr_geo_data = MCRGeoData(
+        geo_data = MCRGeoData(
             stops,
             structs,
             geo_meta,
@@ -97,19 +100,44 @@ def run(
 
         with Timed.info("Fetching POI for runtime optimization"):
             pois = minute_city.fetch_pois_for_area(
-                geo_meta.boundary, mcr_geo_data.original_osm_nodes
+                geo_meta.boundary, geo_data.original_osm_nodes
             )
-            mcr_geo_data.add_pois_to_mm_graph(pois)
-            mcr_geo_data.add_pois_to_walking_graph(pois)
+            geo_data.add_pois_to_mm_graph(pois)
+            geo_data.add_pois_to_walking_graph(pois)
 
         config = MCRConfig(
             enable_limit=enable_limit,
             disable_paths=disable_paths,
         )
+
+        bicycle_step = BicycleStepBuilder(
+            geo_data.mm_graph_cache,
+            geo_data.osm_node_to_mm_bicycle_resetted_map,
+            geo_data.mm_walking_node_resetted_to_osm_node_map,
+            geo_data.bicycle_transfer_osm_node_ids,
+            bicycle_price_function,
+        )
+        public_transport_step = PublicTransportStepBuilder(
+            geo_data.structs_dict,
+            geo_data.osm_node_to_stop_map,
+            geo_data.stop_to_osm_node_map,
+        )
+        walking_step = WalkingStepBuilder(
+            geo_data.walking_graph_cache,
+            geo_data.osm_node_to_walking_resetted_map,
+            geo_data.walking_resetted_to_osm_node_map,
+        )
+
+        initial_steps = [[walking_step]]
+        repeating_steps = [
+            [bicycle_step, public_transport_step],
+            [walking_step],
+        ]
+
         mcr_runner = mcr.MCR(
-            mcr_geo_data,
+            initial_steps=initial_steps,
+            repeating_steps=repeating_steps,
             config=config,
-            bicycle_price_function=bicycle_price_function,
             output_format=output_format,
         )
         mcr_runner.run(start_node_id, start_time, max_transfers, output)

@@ -42,18 +42,6 @@ impl GraphCache {
         self.graph = Some(Arc::new(new_graph));
     }
 
-    // fn set_graph_with_node_weights(
-    //     &mut self,
-    //     raw_edges: Vec<HashMap<&str, &PyAny>>,
-    //     node_weights: HashMap<usize, Vec<u8>>,
-    // ) {
-    //     let mut graph = parse_graph(raw_edges);
-    //     for (node_id, weight) in node_weights {
-    //         let current_weight = graph.node_weight_mut(NodeIndex::new(node_id)).unwrap();
-    //         *current_weight = weight;
-    //     }
-    //     self.graph = Some(Arc::new(graph));
-    // }
 
     fn summary(&self) -> PyResult<()> {
         if let Some(graph) = &self.graph {
