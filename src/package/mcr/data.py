@@ -47,6 +47,7 @@ class MCRGeoData:
                 osm_nodes,
                 osm_edges,
             ) = osm.get_graph_for_city_cropped_to_boundary(osm_reader, self.geo_meta)
+            self.original_osm_nodes = osm_nodes.copy()
             nxgraph = graph.create_nx_graph(osm_reader, osm_nodes, osm_edges)
             nxgraph, osm_nodes, osm_edges = graph.crop_graph_to_largest_component(
                 nxgraph, osm_nodes, osm_edges

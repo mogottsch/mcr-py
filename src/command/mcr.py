@@ -95,22 +95,12 @@ def run(
             bicycle_location_path=bicycle_location_path,
         )
 
-        osm_path = osm_lib.get_osm_path_from_city_id(city_id)
-        if not os.path.exists(osm_path) and city_id:
-            rlog.info("Downloading OSM data")
-            osm_lib.download_city(city_id, osm_path)
-        else:
-            rlog.info("Using existing OSM data")
-
-        osm_reader = osm_lib.new_osm_reader(osm_path)
-
-        with Timed.info("Getting OSM graph"):
-            nodes, _ = osm_lib.get_graph_for_city_cropped_to_boundary(
-                osm_reader, geo_meta
+        with Timed.info("Fetching POI for runtime optimization"):
+            pois = minute_city.fetch_pois_for_area(
+                geo_meta.boundary, mcr_geo_data.original_osm_nodes
             )
-        pois = minute_city.fetch_pois_for_area(geo_meta.boundary, nodes)
-        mcr_geo_data.add_pois_to_mm_graph(pois)
-        mcr_geo_data.add_pois_to_walking_graph(pois)
+            mcr_geo_data.add_pois_to_mm_graph(pois)
+            mcr_geo_data.add_pois_to_walking_graph(pois)
 
         config = MCRConfig(
             enable_limit=enable_limit,

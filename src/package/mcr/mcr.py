@@ -12,11 +12,14 @@ from package.mcr.label import (
 )
 from package.mcr.output import OutputFormat
 from package.mcr.path import PathManager
-from package.mcr.steps.public_transport import PublicTransportStep
+from package.mcr.steps.public_transport import (
+    PublicTransportStep,
+    PublicTransportStepBuilder,
+)
 from package.mcr.bag import IntermediateBags
 
 from package.mcr.steps.bicycle import BicycleStep, BicycleStepBuilder
-from package.mcr.steps.walking import WalkingStep
+from package.mcr.steps.walking import WalkingStep, WalkingStepBuilder
 
 
 class MCR:
@@ -42,7 +45,6 @@ class MCR:
         self, start_node_id: int, start_time: str, max_transfers: int, output_path: str
     ):
         start_time_in_seconds = strtime.str_time_to_seconds(start_time)
-
         bicycle_step_builder = BicycleStepBuilder(
             self.geo_data.mm_graph_cache,
             self.geo_data.multi_modal_node_to_resetted_map,
@@ -50,35 +52,33 @@ class MCR:
             self.geo_data.bicycle_transfer_nodes_walking_node_ids,
             self.bicycle_price_function,
         )
-        bicycle_step = bicycle_step_builder.build(
-            self.logger,
-            self.timer,
-            self.path_manager,
-            self.enable_limit,
-            self.disable_paths,
-        )
-        self.logger.debug(f"Bicycle step: {bicycle_step}")
-        public_transport_step = PublicTransportStep(
-            self.logger,
-            self.timer,
-            self.path_manager,
-            self.enable_limit,
-            self.disable_paths,
+        public_transport_step_builder = PublicTransportStepBuilder(
             self.geo_data.structs_dict,
             self.geo_data.osm_node_to_stop_map,
             self.geo_data.stop_to_osm_node_map,
         )
-
-        walking_step = WalkingStep(
-            self.logger,
-            self.timer,
-            self.path_manager,
-            self.enable_limit,
-            self.disable_paths,
+        walking_step_builder = WalkingStepBuilder(
             self.geo_data.walking_graph_cache,
             self.geo_data.walking_node_to_resetted_map,
             self.geo_data.resetted_to_walking_node_map,
         )
+
+        builder_kwargs = {
+            "logger": self.logger,
+            "timer": self.timer,
+            "path_manager": self.path_manager,
+            "enable_limit": self.enable_limit,
+            "disable_paths": self.disable_paths,
+        }
+        bicycle_step = bicycle_step_builder.build(**builder_kwargs)
+        public_transport_step = public_transport_step_builder.build(**builder_kwargs)
+        walking_step = walking_step_builder.build(**builder_kwargs)
+
+        initial_steps = [[walking_step]]
+        repeating_steps = [
+            [bicycle_step, public_transport_step],
+            [walking_step],
+        ]
 
         bags_i: dict[int, IntermediateBags] = {}
 
@@ -86,27 +86,26 @@ class MCR:
 
         start_bags = self.create_start_bags(start_node_id, start_time_in_seconds)
 
-        walking_result_bags = walking_step.run(start_bags)
+        for steps in initial_steps:
+            result_bags = []
+            for step in steps:
+                result_bags.append(step.run(start_bags))
+            start_bags = self.merge_bags(*result_bags)
 
-        bags_i[0] = walking_result_bags
+        bags_i[0] = start_bags
 
         for i in range(1, max_transfers + 1):
             self.logger.info(f"Running iteration {i}")
             offset = i * 2 - 1
 
-            bicycle_result_bags = bicycle_step.run(walking_result_bags, offset)
-            public_transport_result_bags = public_transport_step.run(
-                walking_result_bags, offset
-            )
-            with self.timer.info("Merging bags"):
-                combined_bags = self.merge_bags(
-                    bicycle_result_bags,
-                    public_transport_result_bags,
-                )
+            repeated_games = bags_i[i - 1]
+            for steps in repeating_steps:
+                result_bags = []
+                for step in steps:
+                    result_bags.append(step.run(repeated_games, offset))
+                repeated_games = self.merge_bags(*result_bags)
 
-            walking_result_bags = walking_step.run(combined_bags, offset + 1)
-
-            bags_i[i] = walking_result_bags
+            bags_i[i] = repeated_games
 
         with self.timer.info("Saving bags"):
             self.save_bags(bags_i, output_path)
@@ -173,66 +172,18 @@ class MCR:
 
     def merge_bags(
         self,
-        bags_a: IntermediateBags,
-        bags_b: IntermediateBags,
+        *bag_collection: IntermediateBags,
     ) -> IntermediateBags:
-        """
-        Merges two bag dictionaries into one.
-        """
-        combined_bags = bags_a
-        for node_id, b_bag in bags_b.items():
-            a_bag = combined_bags.get(node_id, [])
-            merged_bag = merge_intermediate_bags(a_bag, b_bag)
-            combined_bags[node_id] = merged_bag
+        combined_bags = bag_collection[0]
+
+        if len(bag_collection) == 1:
+            return combined_bags
+
+        with self.timer.info(f"Merging bags from {len(bag_collection)} steps"):
+            for bags in bag_collection[1:]:
+                for node_id, bag in bags.items():
+                    a_bag = combined_bags.get(node_id, [])
+                    merged_bag = merge_intermediate_bags(a_bag, bag)
+                    combined_bags[node_id] = merged_bag
 
         return combined_bags
-
-    def nullify_hidden_values(self, bags: IntermediateBags) -> IntermediateBags:
-        """
-        Sets the hidden values of the bags to 0.
-        Necessary between two multi-modal steps, as ending the multi-modal step
-        is equivalent to dismounting.
-        """
-        # nullify hidden_values
-        # this is done to reset the time spent on a bicycle as ending the
-        # bicycle step is equivalent to dismounting
-        for bag in bags.values():
-            for label in bag:
-                label.hidden_values = []
-        return bags
-
-
-# def get_graph(
-#     osm_reader: pyrosm.OSM, geo_meta: GeoMeta
-# ) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
-#     with Timed.info("Getting OSM graph"):
-#         nodes, edges = osm.get_graph_for_city_cropped_to_boundary(osm_reader, stops_df)
-#
-#     return nodes, edges
-
-
-def get_size(obj: Any) -> int:
-    size = sys.getsizeof(obj)
-
-    if isinstance(obj, dict):
-        for key, value in obj.items():
-            size += get_size(key) + get_size(value)
-
-    elif isinstance(obj, list):
-        size += sum([get_size(i) for i in obj])
-
-    elif isinstance(obj, tuple):
-        size += sum([get_size(i) for i in obj])
-
-    elif hasattr(obj, "__dict__"):
-        size += get_size(obj.__dict__)
-
-    return size
-
-
-def pretty_bytes(b: float) -> str:
-    for unit in ["B", "KB", "MB", "GB", "TB", "PB"]:
-        if b < 1024:
-            return f"{b:.2f} {unit}"
-        b /= 1024
-    return f"{b:.2f} PB"

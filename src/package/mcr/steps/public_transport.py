@@ -4,7 +4,7 @@ from package.logger import Timer
 from package.mcr.bag import IntermediateBags
 from package.mcr.label import IntermediateLabel, McRAPTORLabel, McRAPTORLabelWithPath
 from package.mcr.path import PathManager, PathType
-from package.mcr.steps.interface import Step
+from package.mcr.steps.interface import Step, StepBuilder
 from package.raptor.bag import Bag
 from package.mcr.bag import (
     IntermediateBags,
@@ -118,3 +118,19 @@ class PublicTransportStep(Step):
             )
 
         return mc_raptor_result_bags
+
+
+class PublicTransportStepBuilder(StepBuilder):
+    step = PublicTransportStep
+
+    def __init__(
+        self,
+        structs_dict: dict,
+        osm_node_to_stop_map: dict[int, int],
+        stop_to_osm_node_map: dict[int, int],
+    ):
+        self.kwargs = {
+            "structs_dict": structs_dict,
+            "osm_node_to_stop_map": osm_node_to_stop_map,
+            "stop_to_osm_node_map": stop_to_osm_node_map,
+        }

@@ -137,12 +137,19 @@ class BicycleStep(Step):
                 self.resetted_to_multi_modal_node_map[node_id][1:]
             ),
         )
+
         if self.path_manager:
             self.path_manager.extract_all_paths_from_bags(
                 bags,
                 PathType.CYCLING_WALKING,
                 path_index_offset=path_index_offset,
             )
+
+        # nullify time spent on bicycle
+        for bag in bags.values():
+            for label in bag:
+                label.hidden_values[0] = 0
+
         return bags
 
 

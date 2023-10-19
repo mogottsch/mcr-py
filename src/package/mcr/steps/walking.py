@@ -3,7 +3,7 @@ from typing import Optional
 from package.logger import Timer
 from package.mcr.bag import IntermediateBags
 from package.mcr.path import PathManager, PathType
-from package.mcr.steps.interface import Step
+from package.mcr.steps.interface import Step, StepBuilder
 from mcr_py import GraphCache
 import mcr_py
 from package.mcr.bag import (
@@ -71,12 +71,6 @@ class WalkingStep(Step):
             for node_id, labels in bags.items()
         }
 
-        # TODO: this does not belong here
-        # nullify time spent on bicycle
-        for bag in walking_bags.values():
-            for label in bag:
-                label.hidden_values[0] = 0
-
         return walking_bags
 
     def convert_walking_bags(
@@ -109,3 +103,19 @@ class WalkingStep(Step):
                 path_index_offset=path_index_offset,
             )
         return converted_bags
+
+
+class WalkingStepBuilder(StepBuilder):
+    step = WalkingStep
+
+    def __init__(
+        self,
+        graph_cache: GraphCache,
+        walking_node_to_resetted_map: dict,
+        resetted_to_walking_node_map: dict,
+    ):
+        self.kwargs = {
+            "graph_cache": graph_cache,
+            "walking_node_to_resetted_map": walking_node_to_resetted_map,
+            "resetted_to_walking_node_map": resetted_to_walking_node_map,
+        }
