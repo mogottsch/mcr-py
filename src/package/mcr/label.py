@@ -50,7 +50,6 @@ class IntermediateLabel:
     def to_mc_raptor_label(self, stop_id: str) -> McRAPTORLabel:
         n_stops = self.hidden_values[1] if len(self.hidden_values) > 1 else 0
         if len(self.path) > 0:
-            print(self.path, stop_id)
             return McRAPTORLabelWithPath(
                 time=self.values[0],
                 cost=self.values[1],

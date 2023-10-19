@@ -137,6 +137,7 @@ def make_string_stream_logger(name: str | None, level: int = logging.INFO):
 
     return logger, log_stream
 
+
 def copy_settings_to_root_logger(logger: logging.Logger):
     root_logger = logging.getLogger()
     root_logger.setLevel(logger.level)

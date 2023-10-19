@@ -9,6 +9,7 @@ from package import storage
 from package.geometa import GeoMeta
 from package.mcr import mcr
 from package.logger import Timed, rlog
+from package.mcr.config import MCRConfig
 from package.mcr.data import MCRGeoData
 from package.mcr.output import OutputFormat
 from package.minute_city import minute_city
@@ -110,12 +111,16 @@ def run(
         pois = minute_city.fetch_pois_for_area(geo_meta.boundary, nodes)
         mcr_geo_data.add_pois_to_mm_graph(pois)
         mcr_geo_data.add_pois_to_walking_graph(pois)
+
+        config = MCRConfig(
+            enable_limit=enable_limit,
+            disable_paths=disable_paths,
+        )
         mcr_runner = mcr.MCR(
             mcr_geo_data,
-            disable_paths=disable_paths,
+            config=config,
             bicycle_price_function=bicycle_price_function,
             output_format=output_format,
-            enable_limit=enable_limit,
         )
         mcr_runner.run(start_node_id, start_time, max_transfers, output)
 

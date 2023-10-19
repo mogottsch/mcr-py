@@ -125,21 +125,30 @@ pub fn run_mlc_with_bags(
     for (node_id, py_labels) in bags.iter() {
         let mut labels = HashSet::new();
         for py_label in py_labels {
-            let values = py_label
+            let values_result = py_label
                 .getattr("values")
-                .unwrap()
-                .extract::<Vec<u64>>()
-                .unwrap();
+                .unwrap() // assuming this unwrap does not panic
+                .extract::<Vec<u64>>();
+
+            let values = match values_result {
+                Ok(v) => v,
+                Err(e) => {
+                    panic!("Failed to extract values: {:?} {:?}", e, py_label);
+                }
+            };
             let hidden_values = py_label
                 .getattr("hidden_values")
                 .unwrap()
                 .extract::<Option<Vec<u64>>>()
                 .unwrap();
-            let path = py_label
-                .getattr("path")
-                .unwrap()
-                .extract::<Vec<usize>>()
-                .unwrap();
+            let path_result = py_label.getattr("path").unwrap().extract::<Vec<usize>>();
+            let path = match path_result {
+                Ok(v) => v,
+                Err(e) => {
+                    panic!("Failed to extract path: {:?} {:?}", e, py_label);
+                }
+            };
+
             let node_id = py_label
                 .getattr("node_id")
                 .unwrap()
