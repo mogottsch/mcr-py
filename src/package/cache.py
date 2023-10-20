@@ -4,6 +4,7 @@ import hashlib
 import pandas as pd
 import geopandas as gpd
 from pandas.util import hash_pandas_object
+from shapely.geometry import Polygon
 
 from package import storage
 
@@ -19,6 +20,10 @@ def hash_gdf(gdf: gpd.GeoDataFrame) -> int:
 
 def hash_str(s: str) -> int:
     return int(hashlib.sha256(s.encode("utf-8")).hexdigest(), 16)
+
+
+def hash_polygon(polygon: Polygon) -> int:
+    return hash_str(str(polygon))
 
 
 def combine_hashes(hashes: list[int]) -> int:

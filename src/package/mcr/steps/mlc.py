@@ -1,5 +1,5 @@
 from logging import Logger
-from typing import Callable, Optional
+from typing import Callable, Collection, Optional
 from package.logger import Timer
 from package.mcr.bag import IntermediateBags
 from package.mcr.path import PathManager, PathType
@@ -36,8 +36,8 @@ class MLCStep(Step):
         self.from_internal = from_internal
 
         self.update_label_func: Optional[str] = None
-        self.valid_starting_nodes: Optional[set] = None
-        self.valid_end_nodes: Optional[set] = None
+        self.valid_starting_nodes: Optional[Collection] = None
+        self.valid_end_nodes: Optional[Collection] = None
 
         self.after_conversion_func: Optional[
             Callable[[IntermediateBags], IntermediateBags]

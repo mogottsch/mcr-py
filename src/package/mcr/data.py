@@ -19,262 +19,84 @@ N_TOTAL_WEIGHTS = 2  # time, cost
 N_TOTAL_HIDDEN_WEIGHTS = 2  # biking time, public transport stops
 
 
-class MCRGeoData:
+class OSMData:
     def __init__(
         self,
-        stops_path: str,
-        structs_path: str,
         geo_meta: GeoMeta,
         city_id: str = "",
         osm_path: str = "",
-        bicycle_location_path: str = "",
-        logger=rlog,
     ):
-        self.structs_path = structs_path
-        self.stops_path = stops_path
-        self.city_id = city_id
-        self.osm_path = osm_path
-        self.logger = logger
-        self.geo_meta = geo_meta
-
-        self.structs_dict = storage.read_any_dict(structs_path)
-        with Timed.info("Reading stops and geo meta"):
-            self.stops_df = storage.read_gdf(stops_path)
-
-        with Timed.info("Preparing graphs"):
-            osm_reader = osm.get_osm_reader_for_city_id_or_osm_path(city_id, osm_path)
-            (
-                osm_nodes,
-                osm_edges,
-            ) = osm.get_graph_for_city_cropped_to_boundary(osm_reader, self.geo_meta)
-            self.original_osm_nodes = osm_nodes.copy()
-            nxgraph = graph.create_nx_graph(osm_reader, osm_nodes, osm_edges)
-            nxgraph, osm_nodes, osm_edges = graph.crop_graph_to_largest_component(
-                nxgraph, osm_nodes, osm_edges
-            )
-
-            osm_nodes = osm_nodes.set_index("id")
-            osm_nodes["id"] = osm_nodes.index
-
-            self.bicycle_locations = None
-            if bicycle_location_path != "":
-                self.bicycle_locations = storage.read_df(bicycle_location_path)
-                self.bicycle_locations = gpd.GeoDataFrame(
-                    self.bicycle_locations,
-                    geometry=gpd.points_from_xy(
-                        self.bicycle_locations.lon,
-                        self.bicycle_locations.lat,
-                    ),
-                )
-                self.bicycle_locations = self.geo_meta.crop_gdf(self.bicycle_locations)
-                self.bicycle_locations = osm.add_nearest_osm_node_id(
-                    self.bicycle_locations, osm_nodes
-                )
-            else:
-                self.logger.warn(
-                    "No bicycle locations provided - will use random locations"
-                )
-
-            osm_nodes: pd.DataFrame = osm_nodes[["id"]]  # type: ignore
-            osm_edges: pd.DataFrame = osm_edges[["u", "v", "length"]]  # type: ignore
-
-            stops_df = graph.add_nearest_node_to_stops(self.stops_df, nxgraph)
-
-            stops_df["stop_id"] = stops_df["stop_id"].astype(int)
-            self.stop_to_osm_node_map: dict[int, int] = stops_df.set_index("stop_id")[
-                "nearest_node"
-            ].to_dict()
-            self.osm_node_to_stop_map: dict[int, int] = {
-                v: k for k, v in self.stop_to_osm_node_map.items()
-            }
-
-            if self.bicycle_locations is not None:
-                osm_nodes = mark_bicycles(osm_nodes, self.bicycle_locations)
-            else:
-                osm_nodes = mark_bicycles_random(osm_nodes, 100)
-
-            self.bicycle_transfer_osm_node_ids = osm_nodes[
-                osm_nodes["has_bicycle"]
-            ].id.values
-
-            graph_components = create_multi_modal_graph(osm_nodes, osm_edges)
-            multi_modal_nodes, multi_modal_edges, walking_nodes, walking_edges = (
-                graph_components["multi_modal_nodes"],
-                graph_components["multi_modal_edges"],
-                graph_components["walking_nodes"],
-                graph_components["walking_edges"],
-            )
-
-            (
-                multi_modal_nodes,
-                multi_modal_edges,
-                self.multi_modal_node_to_resetted_map,
-            ) = reset_node_ids(multi_modal_nodes, multi_modal_edges)
-            (
-                walking_nodes,
-                walking_edges,
-                self.walking_node_to_resetted_map,
-            ) = reset_node_ids(walking_nodes, walking_edges)
-
-            self.resetted_to_multi_modal_node_map = get_reverse_map(
-                self.multi_modal_node_to_resetted_map
-            )
-            self.resetted_to_walking_node_map = get_reverse_map(
-                self.walking_node_to_resetted_map
-            )
-
-            self.osm_node_to_mm_bicycle_resetted_map = {
-                int(k[1:]): v
-                for k, v in self.multi_modal_node_to_resetted_map.items()
-                if k[0] == "B"
-            }
-            self.mm_walking_node_resetted_to_osm_node_map = {
-                k: int(v[1:])
-                for k, v in self.resetted_to_multi_modal_node_map.items()
-                if v[0] == "W"
-            }
-            self.osm_node_to_walking_resetted_map = {
-                int(k[1:]): v for k, v in self.walking_node_to_resetted_map.items()
-            }
-            self.walking_resetted_to_osm_node_map = {
-                v: k for k, v in self.osm_node_to_walking_resetted_map.items()
-            }
-
-            multi_modal_edges = add_weights(multi_modal_edges, ["travel_time"])
-            multi_modal_edges = add_weights(
-                multi_modal_edges, ["travel_time_bike"], hidden=True
-            )
-            self.walking_edges = add_weights(walking_edges, ["travel_time"])
-            self.walking_edges = add_weights(walking_edges, [], hidden=True)
-
-            raw_edges = multi_modal_edges[
-                ["u", "v", "weights", "hidden_weights"]
-            ].to_dict(
-                "records"  # type: ignore
-            )
-            raw_walking_edges = walking_edges[
-                ["u", "v", "weights", "hidden_weights"]
-            ].to_dict(
-                "records"  # type: ignore
-            )
-            self.osm_nodes = osm_nodes
-
-        with Timed.info("Creating graph cache"):
-            self.mm_graph_cache = GraphCache()
-            self.mm_graph_cache.set_graph(raw_edges)
-            self.walking_graph_cache = GraphCache()
-            self.walking_graph_cache.set_graph(raw_walking_edges)
-
-    def add_pois_to_mm_graph(self, pois: pd.DataFrame) -> None:
-        """
-        Adds POIs to the multi modal graph cache.
-
-        Args:
-            pois: A dataframe containing POIs. Must have the columns "nearest_osm_node_id" and "type".
-        """
-        self.osm_nodes = osm.list_column_to_osm_nodes(self.osm_nodes, pois, "type")
-        self.type_map: dict[str, int] = {}
-        for t in pois["type"].unique():
-            self.type_map[t] = len(self.type_map)
-
-        self.osm_nodes["type_internal"] = self.osm_nodes["type"].map(
-            lambda x: list(map(self.type_map.get, x))
-        )
-        self.osm_nodes["mm_walking_node_id"] = "W" + self.osm_nodes["id"].astype(str)
-        self.osm_nodes["resetted_mm_walking_node_id"] = self.osm_nodes[
-            "mm_walking_node_id"
-        ].map(
-            self.multi_modal_node_to_resetted_map  # type: ignore
+        osm_reader = osm.get_osm_reader_for_city_id_or_osm_path(city_id, osm_path)
+        (
+            osm_nodes,
+            osm_edges,
+        ) = osm.get_graph_for_city_cropped_to_boundary(osm_reader, geo_meta)
+        nxgraph = graph.create_nx_graph(osm_reader, osm_nodes, osm_edges)
+        nxgraph, osm_nodes, osm_edges = graph.crop_graph_to_largest_component(
+            nxgraph, osm_nodes, osm_edges
         )
 
-        resetted_mm_walking_node_id_to_type_map = (
-            self.osm_nodes[["resetted_mm_walking_node_id", "type_internal"]].set_index(
-                "resetted_mm_walking_node_id"
-            )["type_internal"]
-        ).to_dict()
+        osm_nodes = osm_nodes.set_index("id")
+        osm_nodes["id"] = osm_nodes.index
 
-        self.mm_graph_cache.set_node_weights(resetted_mm_walking_node_id_to_type_map)
+        self.nxgraph = nxgraph
+        self.osm_nodes_with_coordinates = osm_nodes.copy()
 
-    def add_pois_to_walking_graph(self, pois: pd.DataFrame) -> None:
-        """
-        Adds POIs to the walking graph cache.
+        osm_nodes: pd.DataFrame = osm_nodes[["id"]]  # type: ignore
+        osm_edges: pd.DataFrame = osm_edges[["u", "v", "length"]]  # type: ignore
 
-        Args:
-            pois: A dataframe containing POIs. Must have the columns "nearest_osm_node_id" and "type".
-        """
-        self.osm_nodes = osm.list_column_to_osm_nodes(self.osm_nodes, pois, "type")
-        self.type_map: dict[str, int] = {}
-        for t in pois["type"].unique():
-            self.type_map[t] = len(self.type_map)
-
-        self.osm_nodes["type_internal"] = self.osm_nodes["type"].map(
-            lambda x: list(map(self.type_map.get, x))
-        )
-        self.osm_nodes["walking_node_id"] = "W" + self.osm_nodes["id"].astype(str)
-        self.osm_nodes["resetted_walking_node_id"] = self.osm_nodes[
-            "walking_node_id"
-        ].map(
-            self.multi_modal_node_to_resetted_map  # type: ignore
-        )
-
-        resetted_walking_node_id_to_type_map = (
-            self.osm_nodes[["resetted_walking_node_id", "type_internal"]].set_index(
-                "resetted_walking_node_id"
-            )["type_internal"]
-        ).to_dict()
-
-        self.walking_graph_cache.set_node_weights(resetted_walking_node_id_to_type_map)
+        self.osm_nodes = osm_nodes
+        self.osm_edges = osm_edges
 
 
-def mark_bicycles(nodes: pd.DataFrame, bicycle_locations: pd.DataFrame) -> pd.DataFrame:
-    nodes["has_bicycle"] = False
+def create_walking_graph(
+    osm_nodes: pd.DataFrame, osm_edges: pd.DataFrame
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    walking_nodes = osm_nodes.copy()
+    walking_edges = osm_edges.copy()
 
-    nodes.loc[bicycle_locations["nearest_osm_node_id"], "has_bicycle"] = True
+    walking_edges = add_reverse_edges(walking_edges)
 
-    return nodes
+    walking_edges = add_travel_time(walking_edges, AVG_WALKING_SPEED)
 
-
-def mark_bicycles_random(nodes: pd.DataFrame, n: int) -> pd.DataFrame:
-    nodes["has_bicycle"] = False
-
-    nodes.loc[nodes.sample(n).index, "has_bicycle"] = True
-
-    return nodes
+    return walking_nodes, walking_edges
 
 
 def create_multi_modal_graph(
-    multi_modal_nodes: pd.DataFrame, multi_modaledges: pd.DataFrame
-) -> dict[str, pd.DataFrame]:
-    multi_modaledges = add_reverse_edges(multi_modaledges)
+    osm_nodes: pd.DataFrame, osm_edges: pd.DataFrame
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    osm_edges = add_reverse_edges(osm_edges)
 
-    walking_nodes = multi_modal_nodes.copy()
-    bike_nodes = multi_modal_nodes.copy()
-    walking_edges = multi_modaledges.copy()
-    bike_edges = multi_modaledges.copy()
+    # bike start
+    bike_nodes = osm_nodes.copy()
+    bike_edges = osm_edges.copy()
 
-    walking_nodes = prefix_id(walking_nodes, "W", "id", save_old=True)
     bike_nodes = prefix_id(bike_nodes, "B", "id", save_old=True)
-
-    walking_edges = prefix_id(walking_edges, "W", "u")
-    walking_edges = prefix_id(walking_edges, "W", "v")
     bike_edges = prefix_id(bike_edges, "B", "u")
     bike_edges = prefix_id(bike_edges, "B", "v")
 
-    transfer_edges = create_transfer_edges(multi_modal_nodes)
+    bike_edges = add_travel_time(bike_edges, AVG_BIKING_SPEED)
+    bike_edges["travel_time_bike"] = bike_edges["travel_time"]
+    # bike end
+
+    # walking start
+    walking_nodes = osm_nodes.copy()
+    walking_edges = osm_edges.copy()
+
+    walking_edges = add_reverse_edges(walking_edges)
+
+    walking_nodes = prefix_id(walking_nodes, "W", "id", save_old=True)
+    walking_edges = prefix_id(walking_edges, "W", "u")
+    walking_edges = prefix_id(walking_edges, "W", "v")
 
     walking_edges = add_travel_time(walking_edges, AVG_WALKING_SPEED)
-    bike_edges = add_travel_time(bike_edges, AVG_BIKING_SPEED)
+    # walking end
 
-    bike_edges["travel_time_bike"] = bike_edges["travel_time"]
+    transfer_edges = create_transfer_edges(osm_nodes)
 
-    multi_modaledges = combine_edges(walking_edges, bike_edges, transfer_edges)
+    multi_modal_edges = combine_edges(walking_edges, bike_edges, transfer_edges)
     multi_modal_nodes = pd.concat([walking_nodes, bike_nodes])
-    return {
-        "multi_modal_nodes": multi_modal_nodes,
-        "multi_modal_edges": multi_modaledges,
-        "walking_nodes": walking_nodes,
-        "walking_edges": walking_edges,
-    }
+    return multi_modal_nodes, multi_modal_edges
 
 
 def add_reverse_edges(edges: pd.DataFrame) -> pd.DataFrame:
@@ -315,9 +137,13 @@ def reset_node_ids(
     edges["u"] = edges["u"].map(node_to_resetted_map)  # type: ignore
     edges["v"] = edges["v"].map(node_to_resetted_map)  # type: ignore
 
-    total_na = edges.isna().sum().sum() + nodes.isna().sum().sum()
+    edges_na = edges[["u", "v"]].isna().sum().sum()
+    nodes_na = nodes["id"].isna().sum()
+    total_na = edges_na + nodes_na
     if total_na > 0:
-        raise ValueError(f"Found {total_na} NaNs in graph")
+        raise ValueError(
+            f"Found {total_na} NaNs in graph (edges: {edges_na}, nodes: {nodes_na})"
+        )
 
     return nodes, edges, node_to_resetted_map
 

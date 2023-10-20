@@ -1,13 +1,14 @@
 from shapely.geometry import Polygon
 from tqdm.auto import tqdm
-from package.osm import osm
+from package import cache
+from package.osm import key, osm
 import geopandas as gpd
 from package.overpass import attributes, query
 import pandas as pd
 from functools import partial
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
-from package.logger import rlog, Timed
+from package.logger import Timed
 
 from package.minute_city import profile
 
@@ -25,14 +26,28 @@ def fetch_pois_for_area(
     Returns:
         gpd.GeoDataFrame: The POIs for the given area of interest.
     """
-    bbox: tuple[float, float, float, float] = area_of_interest.bounds  # type: ignore
+    hash = cache.combine_hashes(
+        [
+            cache.hash_polygon(area_of_interest),
+            cache.hash_gdf(nodes[["lat", "lon"]]), # type: ignore
+        ]
+    )
+    if cache.cache_entry_exists(
+        hash,
+        key.POIS_FILE_IDENTIFIER,
+    ):
+        return cache.read_gdf(hash, key.POIS_FILE_IDENTIFIER)
+
+    bounds: tuple[float, float, float, float] = area_of_interest.bounds  # type: ignore
 
     queries = [
-        (name, query.build(attr, bbox))
+        (name, query.build(attr, bounds))
         for name, attr in attributes.X_MINUTE_CITY_QUERIES
     ]
     pois = query.fetch_and_merge_queries_async(queries, area_of_interest)
     pois: gpd.GeoDataFrame = osm.add_nearest_osm_node_id(pois, nodes)  # type: ignore
+
+    cache.cache_gdf(pois, hash, key.POIS_FILE_IDENTIFIER)
 
     return pois
 

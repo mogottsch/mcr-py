@@ -1,16 +1,19 @@
 from logging import Logger
 from typing import Optional
-from package.logger import Timer
+from package import storage
+from package.logger import Timed, Timer
 from package.mcr.bag import IntermediateBags
 from package.mcr.label import IntermediateLabel, McRAPTORLabel, McRAPTORLabelWithPath
 from package.mcr.path import PathManager, PathType
 from package.mcr.steps.interface import Step, StepBuilder
+from package.osm import graph
 from package.raptor.bag import Bag
 from package.mcr.bag import (
     IntermediateBags,
     convert_mc_raptor_bags_to_intermediate_bags,
 )
 from package.raptor.mcraptor_single import McRaptorSingle
+import networkx as nx
 
 McRAPTORInputBags = dict[str, list[IntermediateLabel]]
 
@@ -125,10 +128,23 @@ class PublicTransportStepBuilder(StepBuilder):
 
     def __init__(
         self,
-        structs_dict: dict,
-        osm_node_to_stop_map: dict[int, int],
-        stop_to_osm_node_map: dict[int, int],
+        structs_path: str,
+        stops_path: str,
+        nxgraph: nx.Graph,
     ):
+        structs_dict = storage.read_any_dict(structs_path)
+        with Timed.info("Reading stops"):
+            self.stops_df = storage.read_gdf(stops_path)
+
+        stops_df = graph.add_nearest_node_to_stops(self.stops_df, nxgraph)
+
+        stops_df["stop_id"] = stops_df["stop_id"].astype(int)
+        stop_to_osm_node_map: dict[int, int] = stops_df.set_index("stop_id")[
+            "nearest_node"
+        ].to_dict()
+        osm_node_to_stop_map: dict[int, int] = {
+            v: k for k, v in stop_to_osm_node_map.items()
+        }
         self.kwargs = {
             "structs_dict": structs_dict,
             "osm_node_to_stop_map": osm_node_to_stop_map,

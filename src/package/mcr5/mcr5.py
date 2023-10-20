@@ -7,7 +7,7 @@ import os
 from package import key
 from tqdm.auto import tqdm
 
-from package.mcr.data import MCRGeoData
+from package.mcr.data import OSMData
 from package.mcr.mcr import MCR
 from package.mcr.output import OutputFormat
 from package.mcr5.h3_osm_interaction import H3OSMLocationMapping
@@ -21,7 +21,7 @@ from package.logger import (
 class MCR5:
     def __init__(
         self,
-        geo_data: MCRGeoData,
+        geo_data: OSMData,
         min_free_memory: float = 3.0,
         max_processes: int = key.DEFAULT_N_PROCESSES,
     ):
@@ -112,7 +112,7 @@ class MCR5:
         errors: Queue,
         h3_cell: str,
         osm_node_id: int,
-        mcr_geo_data: MCRGeoData,
+        mcr_geo_data: OSMData,
         start_time: str,
         max_transfers: int,
         output_dir: str,

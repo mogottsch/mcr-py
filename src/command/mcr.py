@@ -10,7 +10,7 @@ from package.geometa import GeoMeta
 from package.mcr import mcr
 from package.logger import Timed, rlog
 from package.mcr.config import MCRConfig
-from package.mcr.data import MCRGeoData
+from package.mcr.data import OSMData
 from package.mcr.output import OutputFormat
 from package.mcr.steps.bicycle import BicycleStepBuilder
 from package.mcr.steps.public_transport import PublicTransportStepBuilder
@@ -90,20 +90,15 @@ def run(
 
     with Timed.info("Running MCR"):
         geo_meta = GeoMeta.load(geo_meta_path)
-        geo_data = MCRGeoData(
-            stops,
-            structs,
+        geo_data = OSMData(
             geo_meta,
             city_id,
-            bicycle_location_path=bicycle_location_path,
         )
 
         with Timed.info("Fetching POI for runtime optimization"):
             pois = minute_city.fetch_pois_for_area(
-                geo_meta.boundary, geo_data.original_osm_nodes
+                geo_meta.boundary, geo_data.osm_nodes_with_coordinates  # type: ignore
             )
-            geo_data.add_pois_to_mm_graph(pois)
-            geo_data.add_pois_to_walking_graph(pois)
 
         config = MCRConfig(
             enable_limit=enable_limit,
@@ -111,21 +106,22 @@ def run(
         )
 
         bicycle_step = BicycleStepBuilder(
-            geo_data.mm_graph_cache,
-            geo_data.osm_node_to_mm_bicycle_resetted_map,
-            geo_data.mm_walking_node_resetted_to_osm_node_map,
-            geo_data.bicycle_transfer_osm_node_ids,
             bicycle_price_function,
+            bicycle_location_path,
+            geo_meta,
+            geo_data.osm_nodes_with_coordinates,  # type: ignore
+            geo_data.osm_edges,  # type: ignore
+            pois,
         )
         public_transport_step = PublicTransportStepBuilder(
-            geo_data.structs_dict,
-            geo_data.osm_node_to_stop_map,
-            geo_data.stop_to_osm_node_map,
+            structs,
+            stops,
+            geo_data.nxgraph,
         )
         walking_step = WalkingStepBuilder(
-            geo_data.walking_graph_cache,
-            geo_data.osm_node_to_walking_resetted_map,
-            geo_data.walking_resetted_to_osm_node_map,
+            geo_data.osm_nodes_with_coordinates,
+            geo_data.osm_edges,
+            pois,
         )
 
         initial_steps = [[walking_step]]
