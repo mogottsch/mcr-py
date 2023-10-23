@@ -72,18 +72,25 @@ class MCR:
 
         bags_i[0] = start_bags
 
+        stop_early = False
         for i in range(1, max_transfers + 1):
             self.logger.info(f"Running iteration {i}")
             offset = i * 2 - 1
 
-            repeated_games = bags_i[i - 1]
+            repeated_bags = bags_i[i - 1]
             for steps in self.repeating_steps:
                 result_bags = []
                 for step in steps:
-                    result_bags.append(step.run(repeated_games, offset))
-                repeated_games = self.merge_bags(*result_bags)
+                    result_bags.append(step.run(repeated_bags, offset))
+                repeated_bags = self.merge_bags(*result_bags)
+                if len(repeated_bags) == 0:
+                    self.logger.warn(f"No bags found in iteration {i} - stopping")
+                    stop_early = True
+                    break
 
-            bags_i[i] = repeated_games
+            bags_i[i] = repeated_bags
+            if stop_early:
+                break
 
         with self.timer.info("Saving bags"):
             self.save_bags(bags_i, output_path)

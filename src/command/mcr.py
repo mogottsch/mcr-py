@@ -8,21 +8,20 @@ from command.raptor import STRUCTS_HELP
 from command.step_config import (
     ALL_CONFIGS,
     BICYCLE_AND_PUBLIC_TRANSPORT_CONFIG,
+    BICYCLE_CONFIG,
     CAR_CONFIG,
+    PUBLIC_TRANSPORT_CONFIG,
+    WALKING_CONFIG,
+    get_bicycle_only_config,
     get_bicycle_public_transport_config,
     get_car_only_config,
+    get_public_transport_only_config,
+    get_walking_only_config,
 )
-from package.geometa import GeoMeta
 from package.mcr import mcr
 from package.logger import Timed
 from package.mcr.config import MCRConfig
-from package.mcr.data import NetworkType, OSMData
 from package.mcr.output import OutputFormat
-from package.mcr.steps.bicycle import BicycleStepBuilder
-from package.mcr.steps.car import PersonalCarStepBuilder
-from package.mcr.steps.public_transport import PublicTransportStepBuilder
-from package.mcr.steps.walking import WalkingStepBuilder
-from package.minute_city import minute_city
 
 
 def run(
@@ -114,8 +113,27 @@ def run(
             initial_steps, repeating_steps = get_car_only_config(
                 geo_meta_path,
                 city_id,
-                start_node_id,
             )
+        elif step_config == BICYCLE_CONFIG:
+            initial_steps, repeating_steps = get_bicycle_only_config(
+                geo_meta_path,
+                city_id,
+                bicycle_price_function,
+                bicycle_location_path,
+            )
+        elif step_config == PUBLIC_TRANSPORT_CONFIG:
+            initial_steps, repeating_steps = get_public_transport_only_config(
+                geo_meta_path=geo_meta_path,
+                city_id=city_id,
+                structs_path=structs,
+                stops_path=stops,
+            )
+        elif step_config == WALKING_CONFIG:
+            initial_steps, repeating_steps = get_walking_only_config(
+                geo_meta_path=geo_meta_path,
+                city_id=city_id,
+            )
+
         else:
             raise typer.BadParameter(
                 f"Invalid step config '{step_config}'. Possible values: {', '.join(ALL_CONFIGS)}.",

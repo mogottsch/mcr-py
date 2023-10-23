@@ -6,9 +6,9 @@ import time
 import os
 from package import key
 from tqdm.auto import tqdm
+from package.mcr.config import MCRConfig
 
-from package.mcr.data import OSMData
-from package.mcr.mcr import MCR
+from package.mcr.mcr import MCR, StepBuilderMatrix
 from package.mcr.output import OutputFormat
 from package.mcr5.h3_osm_interaction import H3OSMLocationMapping
 from package.logger import (
@@ -21,11 +21,13 @@ from package.logger import (
 class MCR5:
     def __init__(
         self,
-        geo_data: OSMData,
+        initial_steps: StepBuilderMatrix,
+        repeating_steps: StepBuilderMatrix,
         min_free_memory: float = 3.0,
         max_processes: int = key.DEFAULT_N_PROCESSES,
     ):
-        self.geo_data = geo_data
+        self.initial_steps = initial_steps
+        self.repeating_steps = repeating_steps
         self.min_free_memory = min_free_memory
         self.max_processes = max_processes
 
@@ -37,7 +39,7 @@ class MCR5:
         max_transfers: int = 2,
     ) -> list[tuple[str, Exception]]:
         """
-        Run a MCR5 analysis on the underlying geo data for each location mapping.
+        Run a MCR5 analysis for each location mapping.
         Returns a list of tuples, which represent errors that occurred during the analysis.
         The first element of the tuple is the h3 cell, the second element is the exception.
         """
@@ -67,15 +69,16 @@ class MCR5:
 
             p = Process(
                 target=self.run_mcr,
-                args=(
-                    errors,
-                    h3_cell,
-                    osm_node_id,
-                    self.geo_data,
-                    start_time,
-                    max_transfers,
-                    output_dir,
-                ),
+                kwargs={
+                    "errors": errors,
+                    "h3_cell": h3_cell,
+                    "osm_node_id": osm_node_id,
+                    "initial_steps": self.initial_steps,
+                    "repeating_steps": self.repeating_steps,
+                    "start_time": start_time,
+                    "max_transfers": max_transfers,
+                    "output_dir": output_dir,
+                },
             )
 
             p.start()
@@ -112,7 +115,8 @@ class MCR5:
         errors: Queue,
         h3_cell: str,
         osm_node_id: int,
-        mcr_geo_data: OSMData,
+        initial_steps: StepBuilderMatrix,
+        repeating_steps: StepBuilderMatrix,
         start_time: str,
         max_transfers: int,
         output_dir: str,
@@ -121,13 +125,13 @@ class MCR5:
 
         l, log_stream = make_string_stream_logger(f"mcr5-{h3_cell}", logging.DEBUG)
         copy_settings_to_root_logger(l)
+        mcr_config = MCRConfig(logger=l, disable_paths=True, enable_limit=True)
         try:
             mcr_runner = MCR(
-                mcr_geo_data,
-                disable_paths=True,
-                enable_limit=True,
+                initial_steps,
+                repeating_steps,
+                mcr_config,
                 output_format=OutputFormat.DF_FEATHER,
-                logger=l,
             )
 
             mcr_runner.run(

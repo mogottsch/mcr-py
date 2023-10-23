@@ -40,7 +40,6 @@ class PersonalCarStep(MLCStep):
         graph_cache: GraphCache,
         to_internal: dict,
         from_internal: dict,
-        start_node: int,
     ):
         self.logger = logger
         self.timer = timer
@@ -51,8 +50,9 @@ class PersonalCarStep(MLCStep):
         self.graph_cache = graph_cache
         self.to_internal = to_internal
         self.from_internal = from_internal
-        self.valid_starting_nodes = [start_node]
         self.valid_end_nodes = from_internal.keys()
+
+        self.valid_starting_nodes = None 
 
         def nullify_car_hidden_values_cost(
             bags: IntermediateBags,
@@ -75,7 +75,6 @@ class PersonalCarStepBuilder(StepBuilder):
         driving_nodes: gpd.GeoDataFrame,
         driving_edges: gpd.GeoDataFrame,
         pois: gpd.GeoDataFrame,
-        start_node_id: int,
     ):
         multi_modal_nodes, multi_modal_edges = create_multi_modal_graph(
             walking_nodes, walking_edges, driving_nodes, driving_edges, AVG_CAR_SPEED
@@ -117,7 +116,6 @@ class PersonalCarStepBuilder(StepBuilder):
             "graph_cache": self.mm_graph_cache,
             "to_internal": self.osm_node_to_mm_bicycle_resetted_map,
             "from_internal": self.mm_walking_node_resetted_to_osm_node_map,
-            "start_node": start_node_id,
         }
 
     def save_translations(self, output_path: str):

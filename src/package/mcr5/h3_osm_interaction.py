@@ -66,7 +66,7 @@ def get_location_mappings_for_cells(
         if tries == max_tries:
             invalid_h3_cells.append(h3_cell)
             print(f"WARN: None of the closest nodes are inside the H3 cell {h3_cell}")
-            continue
+            # continue
         node = osm_nodes_df.iloc[index]
         location_mappings.append(
             H3OSMLocationMapping(h3_cell, node.id, degree_distance_to_meters(distance))

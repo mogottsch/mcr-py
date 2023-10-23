@@ -42,6 +42,11 @@ class PublicTransportStep(Step):
     def run(self, input_bags: IntermediateBags, offset: int) -> IntermediateBags:
         with self.timer.info("Preparing input for MCRAPTOR step"):
             prepared_input_bags = self.prepare_public_transport_step_input(input_bags)
+            if len(prepared_input_bags) == 0:
+                self.logger.warn(
+                    "Not a single stop is reached by the previous step - aborting MCRAPTOR step"
+                )
+                return {}
 
         with self.timer.info("Running MCRAPTOR step"):
             mc_raptor = McRaptorSingle(

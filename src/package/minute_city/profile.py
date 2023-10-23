@@ -1,5 +1,6 @@
 from package import strtime
 import pandas as pd
+import sys
 
 
 PROFILE_MAX_TIME = strtime.str_time_to_seconds("48:00:00")
@@ -58,12 +59,15 @@ def build_profiles_df(profiles, start_time: int):
     profiles_df = profiles_df.pivot(index="hex_id", columns="cost", values="time")
 
     profiles_df.columns = [f"cost_{c}" for c in profiles_df.columns]
+
+    # fill first cost in case it is not possible to reach without any cost (e.g. car, that can't stop for some time)
+    profiles_df["cost_0"] = profiles_df["cost_0"].fillna(float("inf"))
     for c in profiles_df.columns:
         if c == "cost_0":
             continue
         previous_column = profiles_df.columns[profiles_df.columns.get_loc(c) - 1]
         profiles_df[c] = profiles_df[c].fillna(profiles_df[previous_column])
-    profiles_df = profiles_df.astype(int)
+    profiles_df = profiles_df.astype(float)
 
     return profiles_df
 
