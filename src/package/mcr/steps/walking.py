@@ -1,3 +1,4 @@
+from package.mcr.path import PathType
 from package.osm import osm
 from package.mcr.data import (
     TRAVEL_TIME_COLUMN,
@@ -15,6 +16,7 @@ import pandas as pd
 
 class WalkingStep(MLCStep):
     NAME = "walking"
+    PATH_TYPE = PathType.WALKING
 
 
 class WalkingStepBuilder(StepBuilder):

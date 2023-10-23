@@ -5,18 +5,24 @@ from pyrosm.data import os
 
 from command.footpaths import CITY_ID_HELP, OSM_HELP, STOPS_HELP
 from command.raptor import STRUCTS_HELP
-from package import storage
+from command.step_config import (
+    ALL_CONFIGS,
+    BICYCLE_AND_PUBLIC_TRANSPORT_CONFIG,
+    CAR_CONFIG,
+    get_bicycle_public_transport_config,
+    get_car_only_config,
+)
 from package.geometa import GeoMeta
 from package.mcr import mcr
-from package.logger import Timed, rlog
+from package.logger import Timed
 from package.mcr.config import MCRConfig
-from package.mcr.data import OSMData
+from package.mcr.data import NetworkType, OSMData
 from package.mcr.output import OutputFormat
 from package.mcr.steps.bicycle import BicycleStepBuilder
+from package.mcr.steps.car import PersonalCarStepBuilder
 from package.mcr.steps.public_transport import PublicTransportStepBuilder
 from package.mcr.steps.walking import WalkingStepBuilder
 from package.minute_city import minute_city
-from package.osm import osm as osm_lib
 
 
 def run(
@@ -80,6 +86,12 @@ def run(
             help="Discard labels that won't contribute to X-minute city metric (speeds up computation).",
         ),
     ] = False,
+    step_config: Annotated[
+        str,
+        typer.Option(
+            help=f"Step config preconfiguration id. Possible values: {', '.join(ALL_CONFIGS)}.",
+        ),
+    ] = ALL_CONFIGS[0],
 ):
     validate_flags(
         stops,
@@ -89,46 +101,30 @@ def run(
     )
 
     with Timed.info("Running MCR"):
-        geo_meta = GeoMeta.load(geo_meta_path)
-        geo_data = OSMData(
-            geo_meta,
-            city_id,
-        )
-
-        with Timed.info("Fetching POI for runtime optimization"):
-            pois = minute_city.fetch_pois_for_area(
-                geo_meta.boundary, geo_data.osm_nodes_with_coordinates  # type: ignore
+        if step_config == BICYCLE_AND_PUBLIC_TRANSPORT_CONFIG:
+            initial_steps, repeating_steps = get_bicycle_public_transport_config(
+                geo_meta_path,
+                city_id,
+                bicycle_price_function,
+                bicycle_location_path,
+                structs,
+                stops,
+            )
+        elif step_config == CAR_CONFIG:
+            initial_steps, repeating_steps = get_car_only_config(
+                geo_meta_path,
+                city_id,
+                start_node_id,
+            )
+        else:
+            raise typer.BadParameter(
+                f"Invalid step config '{step_config}'. Possible values: {', '.join(ALL_CONFIGS)}.",
             )
 
         config = MCRConfig(
             enable_limit=enable_limit,
             disable_paths=disable_paths,
         )
-
-        bicycle_step = BicycleStepBuilder(
-            bicycle_price_function,
-            bicycle_location_path,
-            geo_meta,
-            geo_data.osm_nodes_with_coordinates,  # type: ignore
-            geo_data.osm_edges,  # type: ignore
-            pois,
-        )
-        public_transport_step = PublicTransportStepBuilder(
-            structs,
-            stops,
-            geo_data.nxgraph,
-        )
-        walking_step = WalkingStepBuilder(
-            geo_data.osm_nodes_with_coordinates,
-            geo_data.osm_edges,
-            pois,
-        )
-
-        initial_steps = [[walking_step]]
-        repeating_steps = [
-            [bicycle_step, public_transport_step],
-            [walking_step],
-        ]
 
         mcr_runner = mcr.MCR(
             initial_steps=initial_steps,
