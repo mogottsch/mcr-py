@@ -2,12 +2,13 @@ import pyrosm
 import geopandas as gpd
 import networkx as nx
 import osmnx as ox
+from package.logger import rlog
 
 
 def create_nx_graph(
-    osm: pyrosm.OSM, nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame
+    osm: pyrosm.OSM, nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame, network_type: str
 ) -> nx.Graph:
-    graph: nx.Graph = osm.to_graph(nodes, edges, graph_type="networkx", network_type="walking")  # type: ignore
+    graph: nx.Graph = osm.to_graph(nodes, edges, graph_type="networkx", network_type=network_type)  # type: ignore
 
     return graph
 
@@ -20,8 +21,14 @@ def crop_graph_to_largest_component(
 
     graph = graph.subgraph(largest_component).copy()
 
+    n_nodes_before, n_edges_before = len(nodes), len(edges)
     nodes = nodes[nodes["id"].isin(graph.nodes)]  # type: ignore
     edges = edges[edges["u"].isin(graph.nodes) & edges["v"].isin(graph.nodes)]  # type: ignore
+    rlog.debug(
+        f"Removed {n_nodes_before - len(nodes)} nodes and "
+        + f" {n_edges_before - len(edges)} edges from OSM network to ensure"
+        + f" connectivity ({(n_nodes_before-len(nodes))/n_nodes_before*100:.2f}%)"
+    )
     return graph, nodes, edges
 
 

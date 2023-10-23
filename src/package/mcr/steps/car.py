@@ -1,8 +1,6 @@
 from logging import Logger
-import numpy as np
 from typing import Optional
 from package import storage
-from package.geometa import GeoMeta
 from package.mcr.bag import IntermediateBags
 from mcr_py import GraphCache
 from package.logger import Timer
@@ -10,7 +8,7 @@ from package.mcr.bag import (
     IntermediateBags,
 )
 from package.mcr.data import (
-    AVG_BIKING_SPEED,
+    AVG_CAR_SPEED,
     DRIVING_PREFIX,
     TRAVEL_TIME_COLUMN,
     TRAVEL_TIME_DRIVING_COLUMN,
@@ -26,12 +24,11 @@ from package.mcr.steps.interface import StepBuilder
 from package.mcr.steps.mlc import MLCStep
 import geopandas as gpd
 from package.osm import osm
-from package.logger import rlog
 
 
-class BicycleStep(MLCStep):
-    NAME = "bicycle"
-    PATH_TYPE = PathType.CYCLING_WALKING
+class PersonalCarStep(MLCStep):
+    NAME = "personal car"
+    PATH_TYPE = PathType.DRIVING_WALKING
 
     def __init__(
         self,
@@ -43,22 +40,21 @@ class BicycleStep(MLCStep):
         graph_cache: GraphCache,
         to_internal: dict,
         from_internal: dict,
-        bicycle_transfer_osm_node_ids: np.ndarray,
-        update_label_func: str,
+        start_node: int,
     ):
         self.logger = logger
         self.timer = timer
         self.path_manager = path_manager
         self.enable_limit = enable_limit
         self.disable_paths = disable_paths
-        self.update_label_func = update_label_func
+        self.update_label_func = "personal_car"
         self.graph_cache = graph_cache
         self.to_internal = to_internal
         self.from_internal = from_internal
-        self.valid_starting_nodes = bicycle_transfer_osm_node_ids
+        self.valid_starting_nodes = [start_node]
         self.valid_end_nodes = from_internal.keys()
 
-        def nullify_bicycle_hidden_values_cost(
+        def nullify_car_hidden_values_cost(
             bags: IntermediateBags,
         ) -> IntermediateBags:
             for bag in bags.values():
@@ -66,51 +62,23 @@ class BicycleStep(MLCStep):
                     label.hidden_values[0] = 0
             return bags
 
-        self.after_conversion_func = nullify_bicycle_hidden_values_cost
+        self.after_conversion_func = nullify_car_hidden_values_cost
 
 
-class BicycleStepBuilder(StepBuilder):
-    step = BicycleStep
+class PersonalCarStepBuilder(StepBuilder):
+    step = PersonalCarStep
 
     def __init__(
         self,
-        update_label_func: str,
-        bicycle_location_path: str,
-        geo_meta: GeoMeta,
         walking_nodes: gpd.GeoDataFrame,
         walking_edges: gpd.GeoDataFrame,
-        cycling_nodes: gpd.GeoDataFrame,
-        cycling_edges: gpd.GeoDataFrame,
+        driving_nodes: gpd.GeoDataFrame,
+        driving_edges: gpd.GeoDataFrame,
         pois: gpd.GeoDataFrame,
+        start_node_id: int,
     ):
-        bicycle_locations = None
-        if bicycle_location_path != "":
-            bicycle_locations = storage.read_df(bicycle_location_path)
-            bicycle_locations = gpd.GeoDataFrame(
-                bicycle_locations,
-                geometry=gpd.points_from_xy(
-                    bicycle_locations.lon,
-                    bicycle_locations.lat,
-                ),
-            )
-            bicycle_locations = geo_meta.crop_gdf(bicycle_locations)
-            bicycle_locations = osm.add_nearest_osm_node_id(
-                bicycle_locations, cycling_nodes
-            )
-        else:
-            rlog.warn("No bicycle locations provided - will use random locations")
-
-        if bicycle_locations is not None:
-            cycling_nodes = mark_bicycles(cycling_nodes, bicycle_locations)
-        else:
-            cycling_nodes = mark_bicycles_random(cycling_nodes, 100)
-
-        bicycle_transfer_osm_node_ids = cycling_nodes[
-            cycling_nodes["has_bicycle"]
-        ].id.values
-
         multi_modal_nodes, multi_modal_edges = create_multi_modal_graph(
-            walking_nodes, walking_edges, cycling_nodes, cycling_edges, AVG_BIKING_SPEED
+            walking_nodes, walking_edges, driving_nodes, driving_edges, AVG_CAR_SPEED
         )
 
         (
@@ -149,9 +117,17 @@ class BicycleStepBuilder(StepBuilder):
             "graph_cache": self.mm_graph_cache,
             "to_internal": self.osm_node_to_mm_bicycle_resetted_map,
             "from_internal": self.mm_walking_node_resetted_to_osm_node_map,
-            "bicycle_transfer_osm_node_ids": bicycle_transfer_osm_node_ids,
-            "update_label_func": update_label_func,
+            "start_node": start_node_id,
         }
+
+    def save_translations(self, output_path: str):
+        storage.write_any_dict(
+            {
+                "resetted_to_multi_modal_node_map": self.resetted_to_multi_modal_node_map,
+                "multi_modal_node_to_resetted_map": self.multi_modal_node_to_resetted_map,
+            },
+            output_path,
+        )
 
     def add_pois_to_mm_graph(self, pois):
         """
@@ -182,22 +158,3 @@ class BicycleStepBuilder(StepBuilder):
         ).to_dict()
 
         self.mm_graph_cache.set_node_weights(resetted_mm_walking_node_id_to_type_map)
-
-
-def mark_bicycles(
-    nodes: gpd.GeoDataFrame,
-    bicycle_locations: gpd.GeoDataFrame,
-) -> gpd.GeoDataFrame:
-    nodes["has_bicycle"] = False
-
-    nodes.loc[bicycle_locations["nearest_osm_node_id"], "has_bicycle"] = True
-
-    return nodes
-
-
-def mark_bicycles_random(nodes: gpd.GeoDataFrame, n: int) -> gpd.GeoDataFrame:
-    nodes["has_bicycle"] = False
-
-    nodes.loc[nodes.sample(n).index, "has_bicycle"] = True
-
-    return nodes

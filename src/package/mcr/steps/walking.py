@@ -1,10 +1,11 @@
 from package.osm import osm
-from package.logger import Timed
 from package.mcr.data import (
+    TRAVEL_TIME_COLUMN,
     add_weights,
     create_walking_graph,
     get_reverse_map,
     reset_node_ids,
+    to_mlc_edges,
 )
 from package.mcr.steps.interface import StepBuilder
 from mcr_py import GraphCache
@@ -37,14 +38,10 @@ class WalkingStepBuilder(StepBuilder):
             self.walking_node_to_resetted_map
         )
 
-        self.walking_edges = add_weights(walking_edges, ["travel_time"])
+        self.walking_edges = add_weights(walking_edges, [TRAVEL_TIME_COLUMN])
         self.walking_edges = add_weights(walking_edges, [], hidden=True)
 
-        raw_walking_edges = walking_edges[
-            ["u", "v", "weights", "hidden_weights"]
-        ].to_dict(
-            "records"  # type: ignore
-        )
+        raw_walking_edges = to_mlc_edges(self.walking_edges)
         self.osm_nodes = osm_nodes
 
         self.walking_graph_cache = GraphCache()

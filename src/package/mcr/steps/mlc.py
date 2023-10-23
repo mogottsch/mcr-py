@@ -14,6 +14,7 @@ from package.mcr.bag import (
 
 class MLCStep(Step):
     NAME = "mlc"
+    PATH_TYPE = PathType.UNDEFINED
 
     def __init__(
         self,
@@ -102,7 +103,7 @@ class MLCStep(Step):
         if self.path_manager:
             self.path_manager.extract_all_paths_from_bags(
                 converted_bags,
-                PathType.WALKING,
+                self.PATH_TYPE,
                 path_index_offset=path_index_offset,
             )
 

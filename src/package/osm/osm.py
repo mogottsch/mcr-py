@@ -51,12 +51,13 @@ def get_available(
 
 
 def get_graph_for_city_cropped_to_boundary(
-    osm_reader: pyrosm.OSM, geo_meta: GeoMeta
+    osm_reader: pyrosm.OSM, geo_meta: GeoMeta, network_type: str
 ) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     hash = cache.combine_hashes(
         [
             cache.hash_str(osm_reader.filepath),
             geo_meta.hash(),
+            cache.hash_str(network_type),
         ]
     )
 
@@ -65,28 +66,27 @@ def get_graph_for_city_cropped_to_boundary(
     if cache.cache_entry_exists(
         hash, osm_key.EDGES_FILE_IDENTIFIER
     ) and cache.cache_entry_exists(hash, osm_key.NODES_FILE_IDENTIFIER):
-        rlog.info("Loading OSM network from cache")
+        rlog.info(f"Loading OSM network from cache ({network_type})")
         nodes = cache.read_gdf(hash, osm_key.NODES_FILE_IDENTIFIER)
         edges = cache.read_gdf(hash, osm_key.EDGES_FILE_IDENTIFIER)
         return nodes, edges
 
-    with Timed.info("Reading OSM network"):
-        # TODO: optimally we should first crop the data and then read the network
-        nodes, edges = osm.read_network(osm_reader)
+    with Timed.info(f"Reading OSM network ({network_type})"):
+        nodes, edges = osm.read_network(osm_reader, network_type)
 
     with Timed.info("Cropping OSM network to boundary"):
         nodes = geo_meta.crop_gdf(nodes)
         edges = geo_meta.crop_gdf(edges)
 
     with Timed.info("Ensuring graph is connected"):
-        nxgraph = graph.create_nx_graph(osm_reader, nodes, edges)
+        nxgraph = graph.create_nx_graph(osm_reader, nodes, edges, network_type)
         n_nodes_before = len(nodes)
         nxgraph, nodes, edges = graph.crop_graph_to_largest_component(
             nxgraph, nodes, edges
         )
         n_nodes_after = len(nodes)
         rlog.info(
-            f"Removed {n_nodes_before - n_nodes_after} nodes from OSM network to ensure connectivity ({n_nodes_before-n_nodes_after/n_nodes_before*100:.2f}%)"
+            f"Removed {n_nodes_before - n_nodes_after} nodes from OSM network to ensure connectivity ({(n_nodes_before-n_nodes_after)/n_nodes_before*100:.2f}%)"
         )
 
     with Timed.info("Caching OSM network"):
@@ -112,8 +112,10 @@ def new_osm_reader(path: str, **kwargs) -> pyrosm.OSM:
     return pyrosm.OSM(path, **kwargs)
 
 
-def read_network(osm_reader: pyrosm.OSM) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
-    network = osm_reader.get_network(nodes=True, network_type="walking")
+def read_network(
+    osm_reader: pyrosm.OSM, network_type: str
+) -> Tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+    network = osm_reader.get_network(nodes=True, network_type=network_type)
     if network is None:
         raise Exception("No walking network found in OSM data.")
     nodes, edges = network

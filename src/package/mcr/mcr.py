@@ -63,6 +63,7 @@ class MCR:
 
         start_bags = self.create_start_bags(start_node_id, start_time_in_seconds)
 
+        self.logger.info(f"Running initial step")
         for steps in self.initial_steps:
             result_bags = []
             for step in steps:
@@ -95,7 +96,8 @@ class MCR:
                 IntermediateLabel(
                     values=[start_time, 0],
                     hidden_values=[0, 0],
-                    path=[] if self.disable_paths else [start_node_id],
+                    # path=[] if self.disable_paths else [start_node_id],
+                    path=[],
                     osm_node_id=start_node_id,
                 )
             ]
