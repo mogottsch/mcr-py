@@ -60,6 +60,12 @@ def build_profiles_df(profiles, start_time: int):
 
     profiles_df.columns = [f"cost_{c}" for c in profiles_df.columns]
 
+    profiles_df = fill_columns_by_left(profiles_df)
+
+    return profiles_df
+
+
+def fill_columns_by_left(profiles_df: pd.DataFrame) -> pd.DataFrame:
     # fill first cost in case it is not possible to reach without any cost (e.g. car, that can't stop for some time)
     profiles_df["cost_0"] = profiles_df["cost_0"].fillna(float("inf"))
     for c in profiles_df.columns:
@@ -68,7 +74,6 @@ def build_profiles_df(profiles, start_time: int):
         previous_column = profiles_df.columns[profiles_df.columns.get_loc(c) - 1]
         profiles_df[c] = profiles_df[c].fillna(profiles_df[previous_column])
     profiles_df = profiles_df.astype(float)
-
     return profiles_df
 
 
@@ -97,4 +102,18 @@ def add_required_cost_for_optimum_column(profiles_df: pd.DataFrame) -> pd.DataFr
     profiles_df["required_cost_for_optimal"] = profiles_df.apply(
         calculate_required_cost_for_optimal_for_row, axis=1
     )
+    return profiles_df
+
+
+def add_optimum_column(profiles_df: pd.DataFrame) -> pd.DataFrame:
+    cost_rows = [c for c in profiles_df.columns if c.startswith("cost_")]
+
+    def calculate_optimal_for_row(row):
+        optimal = min(row[cost_rows])
+        for c in cost_rows:
+            if row[c] == optimal:
+                return row[c]
+        raise ValueError("No optimal cost found")
+
+    profiles_df["optimal"] = profiles_df.apply(calculate_optimal_for_row, axis=1)
     return profiles_df

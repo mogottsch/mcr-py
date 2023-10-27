@@ -48,7 +48,7 @@ class McRaptorSingle(Generic[L, S, T]):
                 bags[stop_id] = Bag()
                 n_missing_stops += 1
         if n_missing_stops > 0:
-            rlog.warning(
+            rlog.debug(
                 f"Added {n_missing_stops} missing stops to bags ({n_missing_stops / len(self.dq.stop_id_set) * 100:.2f}%)"
             )
 

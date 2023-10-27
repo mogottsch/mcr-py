@@ -45,8 +45,16 @@ class MLCStep(Step):
         ] = None
 
     def run(self, input_bags: IntermediateBags, offset: int = 0) -> IntermediateBags:
+        if not input_bags:
+            raise ValueError("No input bags")
+
         with self.timer.info(f"Preparing input for {self.NAME} step"):
             prepared_input_bags = self.prepare_input(input_bags)
+            if not prepared_input_bags:
+                self.logger.warn(
+                    f"No valid starting node reached by previous step - aborting {self.NAME} step"
+                )
+                return {}
 
         with self.timer.info(f"Running {self.NAME} step"):
             raw_result_bags = mcr_py.run_mlc_with_bags(
@@ -59,6 +67,9 @@ class MLCStep(Step):
         with self.timer.info(f"Extracting {self.NAME} step bags"):
             converted_result_bags = self.convert_bags(
                 raw_result_bags, path_index_offset=offset
+            )
+            self.logger.debug(
+                f"Extracted {len(converted_result_bags)} bags from {self.NAME} step"
             )
 
         return converted_result_bags

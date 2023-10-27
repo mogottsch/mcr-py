@@ -62,6 +62,9 @@ class PublicTransportStep(Step):
             raw_public_transport_result_bags = self.convert_public_transport_bags(
                 raw_public_transport_result_bags, path_index_offset=offset
             )
+            self.logger.debug(
+                f"Extracted {len(raw_public_transport_result_bags)} bags from MCRAPTOR step"
+            )
             if len(raw_public_transport_result_bags) == 0:
                 self.logger.warn("No MCRAPTOR bags found")
 

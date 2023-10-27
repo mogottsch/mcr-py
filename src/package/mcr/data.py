@@ -13,7 +13,7 @@ ACCURACY_MULTIPLIER = 10 ** (ACCURACY - 1)
 
 AVG_WALKING_SPEED = 1.4  # m/s
 AVG_BIKING_SPEED = 4.0  # m/s
-AVG_CAR_SPEED = 13.9  # m/s
+AVG_CAR_SPEED = 11.0  # m/s
 
 N_TOTAL_WEIGHTS = 2  # time, cost
 N_TOTAL_HIDDEN_WEIGHTS = 2  # biking time, public transport stops

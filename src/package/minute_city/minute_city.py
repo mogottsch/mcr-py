@@ -96,5 +96,6 @@ def get_profiles_df(labels_with_pois: gpd.GeoDataFrame, types: list[str]):
         # tuning
         profiles_df = profile.add_any_column_is_different_column(profiles_df)
         profiles_df = profile.add_required_cost_for_optimum_column(profiles_df)
+        profiles_df = profile.add_optimum_column(profiles_df)
 
     return profiles_df
