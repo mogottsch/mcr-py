@@ -69,9 +69,6 @@ class OSMData:
             osm_reader, self.geo_meta, network_type
         )
         nxgraph = graph.create_nx_graph(osm_reader, osm_nodes, osm_edges, network_type)
-        nxgraph, osm_nodes, osm_edges = graph.crop_graph_to_largest_component(
-            nxgraph, osm_nodes, osm_edges
-        )
 
         osm_nodes = osm_nodes.set_index("id")
         osm_nodes["id"] = osm_nodes.index

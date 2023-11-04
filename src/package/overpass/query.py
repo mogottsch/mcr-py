@@ -1,12 +1,14 @@
-from functools import lru_cache
+import os
 import textwrap
 from typing import Any
 import overpy
 import pandas as pd
 import geopandas as gpd
 from concurrent.futures import ThreadPoolExecutor
+from joblib import Memory
 
 from shapely.geometry import Polygon
+from package.key import TMP_DIR_LOCATION
 from package.logger import rlog
 
 
@@ -34,7 +36,10 @@ def build(attr: list[tuple], bounding_box: tuple[float, float, float, float]) ->
     return query
 
 
-@lru_cache(maxsize=10)
+memory = Memory(os.path.join(TMP_DIR_LOCATION, "overpy"), verbose=0)
+
+
+@memory.cache
 def query(query: str):
     result = api.query(query)
 

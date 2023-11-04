@@ -56,7 +56,7 @@ def get_graph_for_city_cropped_to_boundary(
     hash = cache.combine_hashes(
         [
             cache.hash_str(osm_reader.filepath),
-            geo_meta.hash(),
+            geo_meta.hash_boundary(),
             cache.hash_str(network_type),
         ]
     )

@@ -1,4 +1,4 @@
-from shapely.geometry import Point, Polygon
+from shapely.geometry import MultiPolygon, Point, Polygon
 import pickle
 import geopandas as gpd
 import pandas as pd
@@ -12,10 +12,14 @@ class GeoMeta:
     GeoMeta incorporates general geospatial information, including the boundary of the area of consideration.
     """
 
-    def __init__(self, boundary: Polygon):
-        self.boundary = boundary
+    BUFFER = 0.05  # roughly 5km
 
-    def hash(self):
+    def __init__(self, boundary: Polygon):
+        self.boundary = boundary.buffer(self.BUFFER)
+        self.unbuffered_boundary = boundary
+        self.residential_area = None
+
+    def hash_boundary(self):
         return cache.hash_str(self.boundary.wkt)
 
     @staticmethod
@@ -25,6 +29,9 @@ class GeoMeta:
             if not isinstance(loaded, GeoMeta):
                 raise ValueError(f"File at {path} does not contain a GeoMeta object.")
             return loaded
+
+    def set_residential_area(self, residential_area: MultiPolygon):
+        self.residential_area = residential_area
 
     def save(self, path: str):
         with open(path, "wb") as f:
@@ -64,4 +71,8 @@ class GeoMeta:
 
     def add_to_folium_map(self, m: folium.Map) -> folium.Map:
         folium.GeoJson(self.boundary).add_to(m)
+        folium.GeoJson(self.unbuffered_boundary).add_to(m)
+
+        if self.residential_area is not None:
+            folium.GeoJson(self.residential_area).add_to(m)
         return m

@@ -72,7 +72,7 @@ def plot_h3_cells_on_folium(
         folium.Polygon(
             locations=geo_boundary,
             color=color,
-            weight=0.2,
+            weight=0.4,
             opacity=1,
             fill_color=color,
             fill_opacity=opacity,

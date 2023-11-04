@@ -22,22 +22,9 @@ ALL_CONFIGS = [
 ]
 
 
-def get_car_only_config(
-    geo_meta_path: str,
-    city_id: str,
-):
-    geo_meta = GeoMeta.load(geo_meta_path)
-
-    geo_data = OSMData(
-        geo_meta,
-        city_id,
-        additional_network_types=[NetworkType.DRIVING],
-    )
-
+def get_car_only_config_with_data(geo_meta, geo_data):
     with Timed.info("Fetching POI for runtime optimization"):
-        pois = minute_city.fetch_pois_for_area(
-            geo_meta.boundary, geo_data.osm_nodes  # type: ignore
-        )
+        pois = minute_city.fetch_pois_for_area(geo_meta.boundary, geo_data.osm_nodes)  # type: ignore
 
     driving_nodes, driving_edges, _ = geo_data.additional_networks[NetworkType.DRIVING]
     car_step = PersonalCarStepBuilder(
@@ -50,29 +37,19 @@ def get_car_only_config(
 
     initial_steps = []
     repeating_steps = [[car_step]]
-
     return initial_steps, repeating_steps
 
 
-def get_bicycle_public_transport_config(
-    geo_meta_path: str,
-    city_id: str,
+def get_bicycle_public_transport_config_with_data(
+    geo_meta,
+    geo_data,
     bicycle_price_function: str,
     bicycle_location_path: str,
     structs_path: str,
     stops_path: str,
 ):
-    geo_meta = GeoMeta.load(geo_meta_path)
-    geo_data = OSMData(
-        geo_meta,
-        city_id,
-        additional_network_types=[NetworkType.CYCLING],
-    )
-
     with Timed.info("Fetching POI for runtime optimization"):
-        pois = minute_city.fetch_pois_for_area(
-            geo_meta.boundary, geo_data.osm_nodes  # type: ignore
-        )
+        pois = minute_city.fetch_pois_for_area(geo_meta.boundary, geo_data.osm_nodes)  # type: ignore
 
     cycling_nodes, cycling_edges, _ = geo_data.additional_networks[NetworkType.CYCLING]
     bicycle_step = BicycleStepBuilder(
@@ -107,23 +84,14 @@ def get_bicycle_public_transport_config(
     return initial_steps, repeating_steps
 
 
-def get_bicycle_only_config(
-    geo_meta_path: str,
-    city_id: str,
+def get_bicycle_only_config_with_data(
+    geo_meta,
+    geo_data,
     bicycle_price_function: str,
     bicycle_location_path: str,
 ):
-    geo_meta = GeoMeta.load(geo_meta_path)
-    geo_data = OSMData(
-        geo_meta,
-        city_id,
-        additional_network_types=[NetworkType.CYCLING],
-    )
-
     with Timed.info("Fetching POI for runtime optimization"):
-        pois = minute_city.fetch_pois_for_area(
-            geo_meta.boundary, geo_data.osm_nodes  # type: ignore
-        )
+        pois = minute_city.fetch_pois_for_area(geo_meta.boundary, geo_data.osm_nodes)  # type: ignore
 
     cycling_nodes, cycling_edges, _ = geo_data.additional_networks[NetworkType.CYCLING]
     bicycle_step = BicycleStepBuilder(
@@ -152,20 +120,9 @@ def get_bicycle_only_config(
     return initial_steps, repeating_steps
 
 
-def get_walking_only_config(
-    geo_meta_path: str,
-    city_id: str,
-):
-    geo_meta = GeoMeta.load(geo_meta_path)
-    geo_data = OSMData(
-        geo_meta,
-        city_id,
-    )
-
+def get_walking_only_config_with_data(geo_meta, geo_data):
     with Timed.info("Fetching POI for runtime optimization"):
-        pois = minute_city.fetch_pois_for_area(
-            geo_meta.boundary, geo_data.osm_nodes  # type: ignore
-        )
+        pois = minute_city.fetch_pois_for_area(geo_meta.boundary, geo_data.osm_nodes)  # type: ignore
 
     walking_step = WalkingStepBuilder(
         geo_data.osm_nodes,
@@ -179,22 +136,14 @@ def get_walking_only_config(
     return initial_steps, repeating_steps
 
 
-def get_public_transport_only_config(
-    geo_meta_path: str,
-    city_id: str,
+def get_public_transport_only_config_with_data(
+    geo_meta,
+    geo_data,
     structs_path: str,
     stops_path: str,
 ):
-    geo_meta = GeoMeta.load(geo_meta_path)
-    geo_data = OSMData(
-        geo_meta,
-        city_id,
-    )
-
     with Timed.info("Fetching POI for runtime optimization"):
-        pois = minute_city.fetch_pois_for_area(
-            geo_meta.boundary, geo_data.osm_nodes  # type: ignore
-        )
+        pois = minute_city.fetch_pois_for_area(geo_meta.boundary, geo_data.osm_nodes)  # type: ignore
 
     walking_step = WalkingStepBuilder(
         geo_data.osm_nodes,
@@ -211,3 +160,50 @@ def get_public_transport_only_config(
     repeating_steps = [[public_transport_step], [walking_step]]
 
     return initial_steps, repeating_steps
+
+def get_car_only_config(geo_meta_path: str, city_id: str):
+    geo_meta = GeoMeta.load(geo_meta_path)
+    geo_data = OSMData(geo_meta, city_id, additional_network_types=[NetworkType.DRIVING])
+    return get_car_only_config_with_data(geo_meta, geo_data)
+
+
+def get_bicycle_public_transport_config(
+    geo_meta_path: str,
+    city_id: str,
+    bicycle_price_function: str,
+    bicycle_location_path: str,
+    structs_path: str,
+    stops_path: str,
+):
+    geo_meta = GeoMeta.load(geo_meta_path)
+    geo_data = OSMData(geo_meta, city_id, additional_network_types=[NetworkType.CYCLING])
+    return get_bicycle_public_transport_config_with_data(
+        geo_meta, geo_data, bicycle_price_function, bicycle_location_path, structs_path, stops_path)
+
+
+def get_bicycle_only_config(
+    geo_meta_path: str,
+    city_id: str,
+    bicycle_price_function: str,
+    bicycle_location_path: str,
+):
+    geo_meta = GeoMeta.load(geo_meta_path)
+    geo_data = OSMData(geo_meta, city_id, additional_network_types=[NetworkType.CYCLING])
+    return get_bicycle_only_config_with_data(geo_meta, geo_data, bicycle_price_function, bicycle_location_path)
+
+
+def get_walking_only_config(geo_meta_path: str, city_id: str):
+    geo_meta = GeoMeta.load(geo_meta_path)
+    geo_data = OSMData(geo_meta, city_id)
+    return get_walking_only_config_with_data(geo_meta, geo_data)
+
+
+def get_public_transport_only_config(
+    geo_meta_path: str,
+    city_id: str,
+    structs_path: str,
+    stops_path: str,
+):
+    geo_meta = GeoMeta.load(geo_meta_path)
+    geo_data = OSMData(geo_meta, city_id)
+    return get_public_transport_only_config_with_data(geo_meta, geo_data, structs_path, stops_path)
