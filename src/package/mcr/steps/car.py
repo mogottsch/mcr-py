@@ -90,7 +90,7 @@ class PersonalCarStepBuilder(StepBuilder):
             self.multi_modal_node_to_resetted_map
         )
 
-        self.osm_node_to_mm_bicycle_resetted_map = {
+        self.osm_node_to_mm_car_resetted_map = {
             int(k[1:]): v
             for k, v in self.multi_modal_node_to_resetted_map.items()
             if k[0] == DRIVING_PREFIX
@@ -114,7 +114,7 @@ class PersonalCarStepBuilder(StepBuilder):
 
         self.kwargs = {
             "graph_cache": self.mm_graph_cache,
-            "to_internal": self.osm_node_to_mm_bicycle_resetted_map,
+            "to_internal": self.osm_node_to_mm_car_resetted_map,
             "from_internal": self.mm_walking_node_resetted_to_osm_node_map,
         }
 

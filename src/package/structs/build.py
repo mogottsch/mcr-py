@@ -68,23 +68,10 @@ def build_structures(
 StopTimesByTrip = dict[str, list[dict[str, str]]]
 
 
-import pandas as pd
-from concurrent.futures import ProcessPoolExecutor
-
-
-def process_group(group_data):
-    trip_id, group = group_data
-    return trip_id, group[
-        ["arrival_time", "departure_time", "stop_id", "stop_sequence"]
-    ].to_dict("records")
-
-
 def create_stop_times_by_trip(stop_times_df: pd.DataFrame) -> dict:
-    print(1)
     with Timed.debug("grouping by trip and sorting by stop sequence"):
         stop_times_df = stop_times_df.sort_values(["trip_id", "stop_sequence"])
         grouped = stop_times_df.groupby("trip_id")
-    print(2)
 
     stop_times_by_trip = {}
 
