@@ -44,9 +44,12 @@ def plot_h3_cells_on_folium(
     reverse_color: bool = False,
     popup_callback: Optional[Callable] = None,
     color: str = "blue",
+    maximum: Optional[int] = None,
 ) -> None:
     is_dict = isinstance(h3_cells, dict)
-    maximum = max(h3_cells.values()) if is_dict else 0
+    maximum_value = (
+        maximum if maximum is not None else (max(h3_cells.values()) if is_dict else 0)
+    )
 
     for h3_cell in h3_cells:
         geo_boundary = list(h3.h3_to_geo_boundary(h3_cell))
@@ -56,13 +59,16 @@ def plot_h3_cells_on_folium(
         value = None
         if is_dict:
             value = h3_cells[h3_cell]
-            opacity = value / maximum
+            opacity = value / maximum_value
             if reverse_color:
                 opacity = 1 - opacity
 
         popup = None
         if popup_callback:
-            popup = popup_callback(value)
+            if popup_callback.__code__.co_argcount == 1:
+                popup = popup_callback(value)
+            elif popup_callback.__code__.co_argcount == 2:
+                popup = popup_callback(h3_cell, value)
         else:
             popup = (f"Value: {value}" if value else None,)
 
