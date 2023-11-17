@@ -25,8 +25,6 @@ from package.mcr.output import OutputFormat
 
 
 def run(
-    stops: Annotated[str, typer.Option(help=STOPS_HELP)],
-    structs: Annotated[str, typer.Option(help=STRUCTS_HELP)],
     geo_meta_path: Annotated[
         str,
         typer.Option(
@@ -49,6 +47,8 @@ def run(
             help="Output file path.",
         ),
     ],
+    stops: Annotated[str, typer.Option(help=STOPS_HELP)] = "",
+    structs: Annotated[str, typer.Option(help=STRUCTS_HELP)] = "",
     city_id: Annotated[
         str,
         typer.Option(
@@ -163,12 +163,3 @@ def validate_flags(
         raise typer.BadParameter(
             "Either '--city-id' or '--osm' must be provided.",
         )
-
-    if osm and not os.path.isfile(osm):
-        raise typer.BadParameter(f"File '{osm}' does not exist.")
-
-    if not os.path.isfile(stops):
-        raise typer.BadParameter(f"File '{stops}' does not exist.")
-
-    if not os.path.exists(structs):
-        raise typer.BadParameter(f"Structs file {structs} does not exist.")
