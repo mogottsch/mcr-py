@@ -29,7 +29,7 @@ def fetch_pois_for_area(
     hash = cache.combine_hashes(
         [
             cache.hash_polygon(area_of_interest),
-            cache.hash_gdf(nodes[["lat", "lon"]]), # type: ignore
+            cache.hash_gdf(nodes[["lat", "lon"]]),  # type: ignore
         ]
     )
     if cache.cache_entry_exists(

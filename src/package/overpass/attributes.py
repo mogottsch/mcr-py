@@ -50,7 +50,7 @@ BANKS_ATTRIBUTES = [
     ("amenity", "atm"),
     ("amenity", "bank"),
     ("amenity", "bureau de change"),
-    ("amenity", "post oﬃce"),
+    ("amenity", "post office"),
 ]
 PARKS_ATTRIBUTES = [
     ("leisure", "park"),

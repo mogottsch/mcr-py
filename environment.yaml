@@ -27,5 +27,10 @@ dependencies:
   - h3
   # - h3py
   - scipy
-  - overpay
+  - overpy
   - joblib
+  - pip
+  - scikit-learn
+  - scikit-learn-extra
+  - pip:
+      - h3

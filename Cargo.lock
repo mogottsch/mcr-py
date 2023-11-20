@@ -277,7 +277,6 @@ dependencies = [
  "pyo3",
  "pyo3-log",
  "rayon",
- "rustlib",
 ]
 
 [[package]]
@@ -521,10 +520,6 @@ name = "rustc-demangle"
 version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d626bb9dae77e28219937af045c257c28bfd3f69333c512553507f5f9798cb76"
-
-[[package]]
-name = "rustlib"
-version = "0.1.0"
 
 [[package]]
 name = "ryu"
