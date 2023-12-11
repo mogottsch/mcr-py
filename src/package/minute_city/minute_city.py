@@ -66,11 +66,16 @@ def add_pois_to_labels(labels: pd.DataFrame, pois: gpd.GeoDataFrame) -> pd.DataF
     return labels
 
 
-def get_profiles_df(labels_with_pois: gpd.GeoDataFrame, types: list[str]):
+def get_profiles_df(
+    labels_with_pois: gpd.GeoDataFrame,
+    types: list[str],
+    disable_tqdm: bool = False,
+    leave_tqdm: bool = True,
+) -> pd.DataFrame:
     """
     Calculates the profiles for the given labels.
     """
-    with Timed.info("Grouping labels"):
+    with Timed.debug("Grouping labels"):
         grouped = labels_with_pois.groupby("start_id_hex")
         n_groups = len(grouped)
 
@@ -78,10 +83,10 @@ def get_profiles_df(labels_with_pois: gpd.GeoDataFrame, types: list[str]):
 
     profiles = {}
     with (
-        Timed.info("Calculating profiles"),
+        Timed.debug("Calculating profiles"),
         ProcessPoolExecutor(max_workers=multiprocessing.cpu_count() - 2) as executor,
     ):
-        pbar = tqdm(total=n_groups)
+        pbar = tqdm(total=n_groups, disable=disable_tqdm, leave=leave_tqdm)
         for result in executor.map(partial_worker, grouped):
             pbar.update(1)
             if result is not None:
@@ -89,7 +94,7 @@ def get_profiles_df(labels_with_pois: gpd.GeoDataFrame, types: list[str]):
                 profiles[name] = prof
         pbar.close()
 
-    with Timed.info("Creating profiles dataframe"):
+    with Timed.debug("Creating profiles dataframe"):
         start_time: int = labels_with_pois["time"].min()  # type: ignore
         profiles_df = profile.build_profiles_df(profiles, start_time)
 

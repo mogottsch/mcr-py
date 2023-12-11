@@ -5,6 +5,8 @@ from h3 import h3
 from package import key
 from multiprocessing import Pool
 import folium
+from branca.colormap import linear
+from branca.colormap import LinearColormap
 
 
 def add_h3_cell_id_to_df(df: pd.DataFrame, resolution: int) -> pd.DataFrame:
@@ -45,11 +47,27 @@ def plot_h3_cells_on_folium(
     popup_callback: Optional[Callable] = None,
     color: str = "blue",
     maximum: Optional[int] = None,
+    show_legend: bool = False,
+    legend_color_map=None,
+    legend_is_scaled: bool = False,
+    legend_value_callback: Optional[Callable] = None,
+    legend_caption: str = "",
 ) -> None:
     is_dict = isinstance(h3_cells, dict)
     maximum_value = (
         maximum if maximum is not None else (max(h3_cells.values()) if is_dict else 0)
     )
+
+    if show_legend:
+        colormap = legend_color_map or LinearColormap([(255, 255, 255, 0), color])
+        if not legend_is_scaled:
+            if legend_value_callback:
+                maximum_value_legend = legend_value_callback(maximum_value)
+            else:
+                maximum_value_legend = maximum_value
+            colormap = colormap.scale(0, maximum_value_legend)
+        colormap.caption = legend_caption
+        colormap.add_to(folium_map)
 
     for h3_cell in h3_cells:
         geo_boundary = list(h3.h3_to_geo_boundary(h3_cell))
