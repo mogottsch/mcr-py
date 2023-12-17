@@ -98,12 +98,12 @@ class McRAPTORLabel(McRAPTORBaseLabel):
 
     def update_along_trip(self, arrival_time: int, stop_id: str, trip_id: str):
         super().update_along_trip(arrival_time, stop_id, trip_id)
-        # if self.n_stops == 0:
-        #     self.cost += COST_SHORT_DISTANCE_TICKET_INCR
-        # if self.n_stops == LENGTH_SHORT_DISTANCE_TICKET:
-        #     self.cost -= COST_SHORT_DISTANCE_TICKET_INCR
-        #     self.cost += COST_LONG_DISTANCE_TICKET_INCR
-        # self.n_stops += 1
+        if self.n_stops == 0:
+            self.cost += COST_SHORT_DISTANCE_TICKET_INCR
+        if self.n_stops == LENGTH_SHORT_DISTANCE_TICKET:
+            self.cost -= COST_SHORT_DISTANCE_TICKET_INCR
+            self.cost += COST_LONG_DISTANCE_TICKET_INCR
+        self.n_stops += 1
 
     def update_along_footpath(self, walking_time: int, stop_id: str):
         raise NotImplementedError("This label should not be updated along a footpath")
