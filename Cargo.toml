@@ -19,6 +19,5 @@ fast_paths = { git = "https://github.com/easbar/fast_paths.git", rev = "6d236d1b
 rayon = "1.7.0"
 mlc = { version = "0.1.0", path = "../mlc" }
 petgraph = "0.6.3"
-rustlib = { version = "0.1.0", path = "../../privat/rustlib" }
 pyo3-log = "0.8.3"
 log = "0.4.20"

@@ -1,5 +1,6 @@
 use log::info;
 use mlc::bag::{Weight, WeightsTuple};
+use mlc::read::MLCGraph;
 use petgraph::{graph::NodeIndex, Directed, Graph};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -8,10 +9,8 @@ use std::sync::Arc;
 
 #[pyclass]
 pub struct GraphCache {
-    pub graph: Option<Arc<MLCGraph>>,
+    pub graph: Option<Arc<MLCGraph<u8>>>,
 }
-
-type MLCGraph = Graph<(), WeightsTuple, Directed>;
 
 #[pymethods]
 impl GraphCache {
@@ -24,6 +23,25 @@ impl GraphCache {
         let graph = parse_graph(raw_edges);
         self.graph = Some(Arc::new(graph));
     }
+
+    fn set_node_weights(&mut self, node_weights: HashMap<usize, Vec<u8>>) {
+        let arc_graph = self
+            .graph
+            .as_ref()
+            .expect("Graph must be set before modifying node weights");
+        let cloned_arc_graph = Arc::clone(arc_graph);
+        let mut new_graph = (*cloned_arc_graph).clone();
+
+        for (node_id, weight) in node_weights {
+            let current_weight = new_graph
+                .node_weight_mut(NodeIndex::new(node_id))
+                .expect(format!("Node id {} is not in graph", node_id).as_str());
+            *current_weight = weight;
+        }
+
+        self.graph = Some(Arc::new(new_graph));
+    }
+
 
     fn summary(&self) -> PyResult<()> {
         if let Some(graph) = &self.graph {
@@ -68,8 +86,8 @@ impl GraphCache {
     }
 }
 
-fn parse_graph(raw_edges: Vec<HashMap<&str, &PyAny>>) -> MLCGraph {
-    Graph::<(), WeightsTuple, Directed>::from_edges(raw_edges.iter().map(|edge| {
+fn parse_graph(raw_edges: Vec<HashMap<&str, &PyAny>>) -> MLCGraph<u8> {
+    Graph::<Vec<u8>, WeightsTuple, Directed>::from_edges(raw_edges.iter().map(|edge| {
         let u = edge.get("u").unwrap().extract::<usize>().unwrap();
         let v = edge.get("v").unwrap().extract::<usize>().unwrap();
         // // wait 0.02 seconds
@@ -77,12 +95,18 @@ fn parse_graph(raw_edges: Vec<HashMap<&str, &PyAny>>) -> MLCGraph {
         let weights: Vec<Weight> =
             parse_weights(edge.get("weights").expect("weights not found")).unwrap();
 
-        let hidden_weights: Vec<Weight> = edge
-            .get("hidden_weights")
-            .map(parse_weights)
-            .transpose()
-            .unwrap()
-            .unwrap_or(vec![]);
+        let hidden_weights: Vec<Weight> = parse_weights(
+            edge.get("hidden_weights")
+                .expect("hidden_weights not found"),
+        )
+        .unwrap();
+
+        // let hidden_weights: Vec<Weight> = edge
+        //     .get("hidden_weights")
+        //     .map(parse_weights)
+        //     .transpose()
+        //     .unwrap()
+        //     .unwrap_or(vec![]);
 
         let weights_tuple = WeightsTuple {
             weights,

@@ -4,6 +4,7 @@ import pyrosm
 import geopandas as gpd
 import igraph as ig
 from tqdm.contrib.concurrent import process_map
+from package import key
 
 from package.logger import Timed
 
@@ -41,7 +42,7 @@ def query_multiple_one_to_many(
         source_nodes,
         target_nodes_matrix,
         chunksize=5,
-        max_workers=multiprocessing.cpu_count() - 2,  # leave some to prevent lags
+        max_workers=key.DEFAULT_N_PROCESSES,
     )
 
     source_target_nodes_distance_map: dict[int, dict[int, float]] = {}

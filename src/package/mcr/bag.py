@@ -1,6 +1,6 @@
 from typing import Callable
 from mcr_py import PyLabel
-from package.mcr.label import IntermediateLabel, McRAPTORLabel
+from package.mcr.label import IntermediateLabel, McRAPTORLabel, McRAPTORLabelWithPath
 from package.raptor.bag import Bag
 
 
@@ -11,12 +11,11 @@ IntermediateBags = dict[int, list[IntermediateLabel]]
 def convert_mlc_bags_to_intermediate_bags(
     bags: dict[int, list[PyLabel]],
     translate_node_id: Callable[[int], int],
-    add_zero_weight_to_values: bool = False,
 ) -> IntermediateBags:
     intermediate_bags = {
         translate_node_id(node_id): [
             IntermediateLabel(
-                label.values + ([0] if add_zero_weight_to_values else []),
+                label.values,
                 label.hidden_values,
                 label.path,
                 translate_node_id(node_id),
@@ -42,7 +41,10 @@ def convert_mc_raptor_bags_to_intermediate_bags(
                 )
 
             label: McRAPTORLabel = label
-            if len(label.path) < min_path_length:
+            if (
+                isinstance(label, McRAPTORLabelWithPath)
+                and len(label.path) < min_path_length
+            ):
                 continue
 
             intermediate_bags[int(node_id)].append(

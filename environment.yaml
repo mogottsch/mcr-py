@@ -22,7 +22,15 @@ dependencies:
   - maturin
   - polars
   - pyarrow
-  # optional
   - folium
-  # environment
   - pytest
+  - h3
+  # - h3py
+  - scipy
+  - overpy
+  - joblib
+  - pip
+  - scikit-learn
+  - scikit-learn-extra
+  - pip:
+      - h3
